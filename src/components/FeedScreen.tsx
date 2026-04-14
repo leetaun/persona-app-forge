@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Heart, Award, MapPin, Clock, MessageCircle } from "lucide-react";
+import hoGuomImg from "@/assets/ho-guom.png";
 
 const feedItems = [
   {
@@ -12,6 +13,7 @@ const feedItems = [
     likes: 24,
     badges: 3,
     color: "bg-primary",
+    image: hoGuomImg,
   },
   {
     id: 2,
@@ -72,13 +74,19 @@ const FeedScreen = () => {
               </div>
             </div>
 
-            {/* Image placeholder */}
-            <div className={`w-full aspect-[4/3] ${item.color}/10 flex items-center justify-center`}>
-              <div className="text-center">
-                <MapPin className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground/50">Ảnh check-in nguyên bản</p>
+            {/* Image */}
+            {item.image ? (
+              <div className="w-full aspect-[4/3] overflow-hidden">
+                <img src={item.image} alt={item.caption} className="w-full h-full object-cover" />
               </div>
-            </div>
+            ) : (
+              <div className={`w-full aspect-[4/3] ${item.color}/10 flex items-center justify-center`}>
+                <div className="text-center">
+                  <MapPin className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground/50">Ảnh check-in nguyên bản</p>
+                </div>
+              </div>
+            )}
 
             {/* Caption & actions */}
             <div className="p-4 pt-3">
