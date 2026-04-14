@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Heart, Award, MapPin, Clock, MessageCircle } from "lucide-react";
 import hoGuomImg from "@/assets/ho-guom.png";
+import vanMieuImg from "@/assets/van-mieu.png";
 
 const feedItems = [
   {
@@ -25,6 +26,7 @@ const feedItems = [
     likes: 18,
     badges: 5,
     color: "bg-accent",
+    image: vanMieuImg,
   },
   {
     id: 3,
