@@ -105,7 +105,7 @@ const MapScreen = () => {
       {/* Current location blue dot */}
       <div
         className="absolute z-20"
-        style={{ left: '50%', top: '85%', transform: 'translate(-50%, -50%)' }}
+        style={{ left: '50%', top: '75%', transform: 'translate(-50%, -50%)' }}
       >
         {/* Pulsing ring */}
         <motion.div
