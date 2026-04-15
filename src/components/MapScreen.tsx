@@ -29,16 +29,16 @@ const MapScreen = () => {
             left: `${cp.x}%`,
             top: `${cp.y}%`,
             transform: 'translate(-50%, -50%)',
-            width: '260px',
-            height: '260px',
+            width: '140px',
+            height: '140px',
           }}
         >
           <div
             className="w-full h-full rounded-full"
             style={{
-              background: 'radial-gradient(circle, hsla(210,15%,92%,1) 0%, hsla(210,15%,90%,0.95) 30%, hsla(210,15%,88%,0.8) 50%, hsla(210,15%,85%,0.4) 70%, transparent 85%)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
+              background: 'radial-gradient(circle, hsla(210,15%,92%,0.75) 0%, hsla(210,15%,90%,0.6) 30%, hsla(210,15%,88%,0.4) 55%, transparent 80%)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
           />
         </div>
