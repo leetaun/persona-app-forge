@@ -102,6 +102,52 @@ const MapScreen = () => {
         </motion.button>
       ))}
 
+      {/* 3D Current location marker */}
+      <div
+        className="absolute z-20"
+        style={{ left: '45%', top: '48%', transform: 'translate(-50%, -50%)' }}
+      >
+        {/* Shadow on ground */}
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-4 rounded-full bg-black/20 blur-sm"
+          style={{ transform: 'translate(-50%, 8px) rotateX(60deg)' }}
+        />
+        {/* Pulsing ring */}
+        <motion.div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-primary/40"
+          animate={{ scale: [1, 1.8, 1], opacity: [0.6, 0, 0.6] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Outer glow */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary/20 blur-md" />
+        {/* 3D dome body */}
+        <div
+          className="relative w-8 h-8 rounded-full shadow-xl"
+          style={{
+            background: 'radial-gradient(circle at 35% 30%, hsl(var(--primary) / 1), hsl(var(--primary) / 0.6) 60%, hsl(var(--primary) / 0.3) 100%)',
+            boxShadow: '0 4px 12px hsl(var(--primary) / 0.4), inset 0 -3px 6px hsl(var(--primary) / 0.3), inset 0 2px 4px rgba(255,255,255,0.4)',
+          }}
+        >
+          {/* Specular highlight */}
+          <div
+            className="absolute top-1 left-1.5 w-3 h-2 rounded-full"
+            style={{ background: 'radial-gradient(ellipse, rgba(255,255,255,0.7), transparent)' }}
+          />
+          {/* Direction arrow */}
+          <div className="absolute left-1/2 -top-2 -translate-x-1/2">
+            <div
+              className="w-0 h-0"
+              style={{
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderBottom: '8px solid hsl(var(--primary))',
+                filter: 'drop-shadow(0 -1px 2px hsl(var(--primary) / 0.5))',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Current location button */}
       <motion.button
         whileTap={{ scale: 0.9 }}
