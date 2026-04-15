@@ -21,28 +21,38 @@ const MapScreen = () => {
       <img src={mapBg} alt="Map" className="absolute inset-0 w-full h-full object-cover" />
 
       {/* Fog overlay for locked areas */}
-      {checkpoints.filter(cp => !cp.unlocked).map((cp) => (
-        <div
-          key={`fog-${cp.id}`}
-          className="absolute pointer-events-none z-[5]"
-          style={{
-            left: `${cp.x}%`,
-            top: `${cp.y}%`,
-            transform: 'translate(-50%, -50%)',
-            width: '140px',
-            height: '140px',
-          }}
-        >
+      {checkpoints.filter(cp => !cp.unlocked).map((cp) => {
+        const fogStyle = {
+          background: 'radial-gradient(circle, hsla(210,15%,92%,0.7) 0%, hsla(210,15%,90%,0.5) 40%, transparent 70%)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+        } as React.CSSProperties;
+        // Multiple overlapping blobs to create cloud shape
+        const blobs = [
+          { dx: 0, dy: 0, w: 120, h: 90 },
+          { dx: -40, dy: 15, w: 100, h: 80 },
+          { dx: 45, dy: 10, w: 110, h: 75 },
+          { dx: -20, dy: -25, w: 90, h: 70 },
+          { dx: 30, dy: -20, w: 95, h: 65 },
+          { dx: -55, dy: -5, w: 80, h: 60 },
+          { dx: 60, dy: -10, w: 75, h: 60 },
+        ];
+        return blobs.map((blob, i) => (
           <div
-            className="w-full h-full rounded-full"
+            key={`fog-${cp.id}-${i}`}
+            className="absolute pointer-events-none z-[5]"
             style={{
-              background: 'radial-gradient(circle, hsla(210,15%,92%,0.75) 0%, hsla(210,15%,90%,0.6) 30%, hsla(210,15%,88%,0.4) 55%, transparent 80%)',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
+              left: `${cp.x}%`,
+              top: `${cp.y}%`,
+              transform: `translate(calc(-50% + ${blob.dx}px), calc(-50% + ${blob.dy}px))`,
+              width: `${blob.w}px`,
+              height: `${blob.h}px`,
+              borderRadius: '50%',
+              ...fogStyle,
             }}
           />
-        </div>
-      ))}
+        ));
+      })}
 
       {/* Search bar */}
       <div className="absolute top-12 left-4 right-4 z-10">
