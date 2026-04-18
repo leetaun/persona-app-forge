@@ -1,10 +1,22 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Award, MapPin, Clock, MessageCircle, Heart } from "lucide-react";
+import { Award, MapPin, Clock, MessageCircle, Heart, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface FeedPost {
   id: string;
