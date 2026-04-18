@@ -39,6 +39,9 @@ const AREAS: AreaDef[] = [
 
 const HANOI_CENTER: [number, number] = [105.84, 21.0335];
 const TOKEN_KEY = "mapbox_public_token";
+const ENV_MAPBOX_TOKEN =
+  (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ||
+  "pk.eyJ1IjoibGVldGF1biIsImEiOiJjbW80OG91dWkwbTM1M3dwa291amk1N2N2In0.16XX7az081Vjv-xmyandlQ";
 
 // Build a circle polygon (ring) around a center point in lng/lat using meters approximation
 function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
