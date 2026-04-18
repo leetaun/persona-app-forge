@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { Search } from "lucide-react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { Search, MapPin, Lock, CheckCircle2, Eye, Compass } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Checkpoint {
   id: string;
@@ -17,69 +20,143 @@ interface Checkpoint {
   is_hot: boolean;
 }
 
-const HANOI_CENTER: [number, number] = [21.0335, 105.84];
+type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang";
 
-const makeIcon = (unlocked: boolean, hot: boolean) =>
-  L.divIcon({
-    className: "",
-    html: `<div style="
-      position:relative;width:36px;height:36px;border-radius:9999px;
-      background:${unlocked ? "hsl(152 55% 42%)" : "hsl(160 10% 50%)"};
-      border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.25);
-      display:flex;align-items:center;justify-content:center;color:white;
-      ${hot ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}
-    ">
-      ${
-        unlocked
-          ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 7-8 13-8 13s-8-6-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`
-          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
-      }
-      ${hot ? `<div style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:9999px;background:hsl(43 96% 56%);display:flex;align-items:center;justify-content:center;"><svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9"/></svg></div>` : ""}
-    </div>`,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
+interface AreaDef {
+  key: AreaKey;
+  name: string;
+  center: [number, number]; // [lng, lat]
+  radiusKm: number;
+  zoom: number;
+}
+
+const AREAS: AreaDef[] = [
+  { key: "ho_tay", name: "Hồ Tây", center: [105.8234, 21.0581], radiusKm: 1.6, zoom: 14 },
+  { key: "hoan_kiem", name: "Hoàn Kiếm", center: [105.8521, 21.0285], radiusKm: 1.0, zoom: 15 },
+  { key: "ba_dinh", name: "Ba Đình", center: [105.8342, 21.0368], radiusKm: 1.2, zoom: 14.5 },
+  { key: "bat_trang", name: "Bát Tràng", center: [105.9123, 20.9757], radiusKm: 1.0, zoom: 15 },
+];
+
+const HANOI_CENTER: [number, number] = [105.84, 21.0335];
+const TOKEN_KEY = "mapbox_public_token";
+
+// Build a circle polygon (ring) around a center point in lng/lat using meters approximation
+function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
+  const [lng, lat] = center;
+  const coords: [number, number][] = [];
+  const earthR = 6378.137;
+  const dRad = radiusKm / earthR;
+  const latRad = (lat * Math.PI) / 180;
+  for (let i = 0; i <= points; i++) {
+    const bearing = (i * 360) / points;
+    const bRad = (bearing * Math.PI) / 180;
+    const lat2 = Math.asin(
+      Math.sin(latRad) * Math.cos(dRad) + Math.cos(latRad) * Math.sin(dRad) * Math.cos(bRad),
+    );
+    const lng2 =
+      (lng * Math.PI) / 180 +
+      Math.atan2(
+        Math.sin(bRad) * Math.sin(dRad) * Math.cos(latRad),
+        Math.cos(dRad) - Math.sin(latRad) * Math.sin(lat2),
+      );
+    coords.push([(lng2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
+  }
+  return coords;
+}
+
+// Outer ring covering all of Hanoi (and beyond) — used as the fog mask outer boundary
+const HANOI_OUTER_RING: [number, number][] = [
+  [105.55, 20.85],
+  [106.15, 20.85],
+  [106.15, 21.25],
+  [105.55, 21.25],
+  [105.55, 20.85],
+];
+
+function buildFogGeoJson(): GeoJSON.Feature<GeoJSON.Polygon> {
+  // Polygon with holes: first ring = outer, subsequent rings = holes (inverted polygon)
+  const holes = AREAS.map((a) => circleRing(a.center, a.radiusKm));
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [HANOI_OUTER_RING, ...holes],
+    },
+  };
+}
+
+function isInsideUnlockedArea(lng: number, lat: number): boolean {
+  // simple radius-based check (km)
+  return AREAS.some((a) => {
+    const dx = (lng - a.center[0]) * 111 * Math.cos((lat * Math.PI) / 180);
+    const dy = (lat - a.center[1]) * 111;
+    return Math.sqrt(dx * dx + dy * dy) <= a.radiusKm;
   });
-
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 const MapScreen = () => {
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const layersRef = useRef<L.LayerGroup | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const [token, setToken] = useState<string>(() => localStorage.getItem(TOKEN_KEY) || "");
+  const [tokenInput, setTokenInput] = useState("");
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [exploreMode, setExploreMode] = useState(true); // true = Khám phá, false = Tham quan
+  const [mapReady, setMapReady] = useState(false);
 
-  // Init map once
+  // Init map when token available
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, {
+    if (!token || !containerRef.current || mapRef.current) return;
+    mapboxgl.accessToken = token;
+    const map = new mapboxgl.Map({
+      container: containerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
       center: HANOI_CENTER,
-      zoom: 13,
-      zoomControl: false,
-      attributionControl: true,
+      zoom: 11.5,
+      pitch: 0,
     });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap",
-    }).addTo(map);
-    layersRef.current = L.layerGroup().addTo(map);
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
+
+    map.on("load", () => {
+      // Fog source + layer (inverted polygon)
+      map.addSource("fog", {
+        type: "geojson",
+        data: buildFogGeoJson(),
+      });
+      map.addLayer({
+        id: "fog-layer",
+        type: "fill",
+        source: "fog",
+        paint: {
+          "fill-color": "#1f2937",
+          "fill-opacity": 0.8,
+        },
+      });
+      // Optional: outline glow on holes
+      map.addLayer({
+        id: "fog-outline",
+        type: "line",
+        source: "fog",
+        paint: {
+          "line-color": "#fbbf24",
+          "line-width": 1.5,
+          "line-opacity": 0.6,
+        },
+      });
+      setMapReady(true);
+    });
+
     mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
-      layersRef.current = null;
+      setMapReady(false);
     };
-  }, []);
+  }, [token]);
 
   // Load data
   useEffect(() => {
@@ -91,75 +168,107 @@ const MapScreen = () => {
           : Promise.resolve({ data: [] as any[] }),
       ]);
       setCheckpoints((cps as Checkpoint[]) || []);
-      setUnlockedIds(new Set(((cis as any[]) || []).map((c) => c.checkpoint_id)));
+      setUnlockedIds(new Set(((cis as any[]) || []).map((c: any) => c.checkpoint_id)));
       setLoading(false);
     };
     load();
   }, [user]);
 
-  // Render markers + fog
+  // Render markers based on mode + unlocked areas
   useEffect(() => {
-    if (!mapRef.current || !layersRef.current) return;
-    layersRef.current.clearLayers();
+    if (!mapRef.current || !mapReady) return;
+    // clear existing
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
 
-    const isDiscoverable = (cp: Checkpoint) => {
-      if (unlockedIds.has(cp.id)) return true;
-      if (unlockedIds.size === 0) {
-        return checkpoints.slice(0, 3).some((c) => c.id === cp.id);
-      }
-      return checkpoints
-        .filter((c) => unlockedIds.has(c.id))
-        .some((c) => haversine(c.lat, c.lng, cp.lat, cp.lng) < 1500);
-    };
+    if (!exploreMode) return; // Tham quan = no markers
 
     checkpoints.forEach((cp) => {
-      const discoverable = isDiscoverable(cp);
-      const unlocked = unlockedIds.has(cp.id);
+      if (!isInsideUnlockedArea(cp.lng, cp.lat)) return;
+      const completed = unlockedIds.has(cp.id);
 
-      if (!discoverable) {
-        L.circle([cp.lat, cp.lng], {
-          radius: 600,
-          color: "hsl(210 15% 60%)",
-          fillColor: "hsl(210 15% 80%)",
-          fillOpacity: 0.85,
-          weight: 1,
-          dashArray: "4 6",
-        }).addTo(layersRef.current!);
-      }
+      const el = document.createElement("div");
+      el.style.cssText = `
+        width:36px;height:36px;border-radius:9999px;
+        background:${completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)"};
+        border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);
+        display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;
+        ${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}
+      `;
+      el.innerHTML = completed
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
-      const marker = L.marker([cp.lat, cp.lng], {
-        icon: makeIcon(discoverable, cp.is_hot),
-      });
-      const popupHtml = discoverable
-        ? `<div style="font-size:12px;">
-            <p style="font-weight:bold;font-size:14px;margin:0 0 4px;">${cp.name}</p>
-            ${cp.area ? `<p style="color:#777;margin:0 0 4px;">📍 ${cp.area}</p>` : ""}
-            <p style="color:#777;margin:0 0 4px;">${cp.description ?? ""}</p>
-            <p style="color:hsl(152 55% 42%);font-weight:600;margin:0;">+${cp.xp_reward} XP</p>
-            ${unlocked ? `<p style="color:#059669;font-weight:500;margin:4px 0 0;">✓ Đã check-in</p>` : ""}
-          </div>`
-        : `<div style="font-size:12px;">
-            <p style="font-weight:bold;font-size:14px;margin:0 0 4px;">${cp.name}</p>
-            <p style="color:#777;font-style:italic;margin:0;">🌫️ Hoàn thành các nhiệm vụ gần đây để mở khoá</p>
-          </div>`;
-      marker.bindPopup(popupHtml).addTo(layersRef.current!);
+      const popup = new mapboxgl.Popup({ offset: 22, closeButton: false }).setHTML(
+        `<div style="font-size:12px;min-width:160px;">
+          <p style="font-weight:700;font-size:14px;margin:0 0 4px;">${cp.name}</p>
+          ${cp.area ? `<p style="color:#777;margin:0 0 4px;">📍 ${cp.area}</p>` : ""}
+          ${cp.description ? `<p style="color:#555;margin:0 0 6px;">${cp.description}</p>` : ""}
+          <p style="color:hsl(152 55% 42%);font-weight:600;margin:0;">+${cp.xp_reward} XP</p>
+          ${completed ? `<p style="color:#059669;font-weight:500;margin:4px 0 0;">✓ Đã hoàn thành</p>` : `<p style="color:#777;font-style:italic;margin:4px 0 0;">🔒 Chưa mở khoá</p>`}
+        </div>`,
+      );
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([cp.lng, cp.lat])
+        .setPopup(popup)
+        .addTo(mapRef.current!);
+      markersRef.current.push(marker);
     });
+  }, [checkpoints, unlockedIds, exploreMode, mapReady]);
 
-    if (checkpoints.length > 0) {
-      const bounds = L.latLngBounds(checkpoints.map((c) => [c.lat, c.lng] as [number, number]));
-      mapRef.current.fitBounds(bounds, { padding: [60, 60] });
-    }
-  }, [checkpoints, unlockedIds]);
+  const flyToArea = (a: AreaDef) => {
+    mapRef.current?.flyTo({ center: a.center, zoom: a.zoom, speed: 1.2, curve: 1.6, essential: true });
+  };
+
+  const saveToken = () => {
+    const t = tokenInput.trim();
+    if (!t.startsWith("pk.")) return;
+    localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+  };
+
+  // Token gate
+  if (!token) {
+    return (
+      <div className="h-full w-full flex items-center justify-center p-6 bg-background">
+        <div className="max-w-md w-full glass-surface rounded-2xl p-6 shadow-lg space-y-4">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-primary" />
+            <h2 className="font-bold text-lg">Kết nối Mapbox</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Dán Mapbox public token (bắt đầu bằng <code>pk.</code>) lấy từ{" "}
+            <a
+              href="https://account.mapbox.com/access-tokens/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline"
+            >
+              account.mapbox.com
+            </a>
+            . Token sẽ được lưu trên thiết bị này.
+          </p>
+          <Input
+            placeholder="pk.eyJ1Ijoi..."
+            value={tokenInput}
+            onChange={(e) => setTokenInput(e.target.value)}
+          />
+          <Button onClick={saveToken} className="w-full">
+            Lưu & mở bản đồ
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 hsla(152,55%,42%,.5)}50%{box-shadow:0 0 0 12px hsla(152,55%,42%,0)}}
-        .leaflet-container{height:100%;width:100%;background:hsl(140 20% 97%);}
-        .leaflet-control-attribution{font-size:9px;opacity:.5}
-      `}</style>
+      <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 hsla(152,55%,42%,.6)}50%{box-shadow:0 0 0 14px hsla(152,55%,42%,0)}}`}</style>
 
       <div ref={containerRef} className="absolute inset-0" />
 
+      {/* Top search bar */}
       <div className="absolute top-12 left-4 right-4 z-[400]">
         <div className="glass-surface rounded-2xl px-4 py-3 flex items-center gap-3 shadow-lg">
           <Search className="w-5 h-5 text-muted-foreground" />
@@ -167,18 +276,64 @@ const MapScreen = () => {
         </div>
       </div>
 
+      {/* Mode toggle */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="absolute top-28 left-4 z-[400]"
       >
-        <div className="glass-surface rounded-xl px-3 py-2 shadow-md">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider">Fog of War</p>
-          <p className="text-xs text-muted-foreground">
-            {unlockedIds.size}/{checkpoints.length} đã mở khoá
-          </p>
+        <div className="glass-surface rounded-xl px-3 py-2 shadow-md flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <Eye className={`w-4 h-4 ${!exploreMode ? "text-primary" : "text-muted-foreground"}`} />
+            <span className={`text-xs font-semibold ${!exploreMode ? "text-primary" : "text-muted-foreground"}`}>
+              Tham quan
+            </span>
+          </div>
+          <Switch checked={exploreMode} onCheckedChange={setExploreMode} />
+          <div className="flex items-center gap-1.5">
+            <Compass className={`w-4 h-4 ${exploreMode ? "text-primary" : "text-muted-foreground"}`} />
+            <span className={`text-xs font-semibold ${exploreMode ? "text-primary" : "text-muted-foreground"}`}>
+              Khám phá
+            </span>
+          </div>
         </div>
       </motion.div>
+
+      {/* Area selector */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute bottom-6 left-4 right-4 z-[400]"
+      >
+        <div className="glass-surface rounded-2xl p-3 shadow-lg">
+          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2 px-1">
+            Khu vực đã mở khoá
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {AREAS.map((a) => (
+              <button
+                key={a.key}
+                onClick={() => flyToArea(a)}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/60 hover:bg-primary hover:text-primary-foreground transition-colors text-left"
+              >
+                <MapPin className="w-4 h-4 shrink-0" />
+                <span className="text-xs font-medium truncate">{a.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Reset token (small) */}
+      <button
+        onClick={() => {
+          localStorage.removeItem(TOKEN_KEY);
+          setToken("");
+        }}
+        className="absolute top-4 right-4 z-[400] text-[10px] text-muted-foreground/70 hover:text-foreground bg-background/60 rounded px-2 py-1"
+      >
+        Đổi token
+      </button>
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-[500]">
