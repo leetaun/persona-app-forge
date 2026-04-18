@@ -170,6 +170,35 @@ const FeedScreen = () => {
                   <Award className="w-3 h-3 text-primary" />
                   <span className="text-[10px] font-semibold text-primary">Verified</span>
                 </div>
+                {user?.id === item.user_id && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        className="w-8 h-8 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive flex-shrink-0 transition-colors"
+                        aria-label="Gỡ bài"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Gỡ bài viết này?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Bài viết sẽ bị xoá khỏi feed. Hành động này không thể hoàn tác.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deletePost(item)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Gỡ bài
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
 
               <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
