@@ -6,17 +6,27 @@ import CameraScreen from "@/components/CameraScreen";
 import FeedScreen from "@/components/FeedScreen";
 import AchievementsScreen from "@/components/AchievementsScreen";
 import HiddenGemsScreen from "@/components/HiddenGemsScreen";
+import SuggestionsScreen, { SuggestionCategory } from "@/components/SuggestionsScreen";
 
 type Tab = "map" | "persona" | "camera" | "feed" | "achievements";
+type PersonaId = "hidden_gems" | SuggestionCategory;
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("map");
-  const [showHiddenGems, setShowHiddenGems] = useState(false);
+  const [openPersona, setOpenPersona] = useState<PersonaId | null>(null);
 
-  if (showHiddenGems) {
+  if (openPersona === "hidden_gems") {
     return (
       <div className="h-screen w-full max-w-lg mx-auto relative overflow-hidden bg-background">
-        <HiddenGemsScreen onBack={() => setShowHiddenGems(false)} />
+        <HiddenGemsScreen onBack={() => setOpenPersona(null)} />
+      </div>
+    );
+  }
+
+  if (openPersona) {
+    return (
+      <div className="h-screen w-full max-w-lg mx-auto relative overflow-hidden bg-background">
+        <SuggestionsScreen category={openPersona} onBack={() => setOpenPersona(null)} />
       </div>
     );
   }
@@ -26,7 +36,7 @@ const Index = () => {
       <div className="h-full">
         {activeTab === "map" && <MapScreen />}
         {activeTab === "persona" && (
-          <PersonaScreen onOpenHiddenGems={() => setShowHiddenGems(true)} />
+          <PersonaScreen onOpenPersona={(id) => setOpenPersona(id)} />
         )}
         {activeTab === "camera" && <CameraScreen />}
         {activeTab === "feed" && <FeedScreen />}
