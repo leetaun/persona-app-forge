@@ -103,7 +103,7 @@ const MapScreen = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const [token, setToken] = useState<string>(() => localStorage.getItem(TOKEN_KEY) || "");
+  const [token, setToken] = useState<string>(() => localStorage.getItem(TOKEN_KEY) || ENV_MAPBOX_TOKEN);
   const [tokenInput, setTokenInput] = useState("");
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
