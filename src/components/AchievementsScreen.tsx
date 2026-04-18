@@ -1,33 +1,78 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Award, Star, Gift, ChevronRight, Zap } from "lucide-react";
+import { Award, Star, Gift, ChevronRight, Zap, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
 
-const badges = [
-  { id: 1, name: "Hành trình Tình yêu", emoji: "❤️", earned: true, color: "from-rose-400 to-pink-500" },
-  { id: 2, name: "Huy chương Tâm linh", emoji: "🏛️", earned: true, color: "from-amber-400 to-orange-500" },
-  { id: 3, name: "Huy chương Lịch sử", emoji: "📜", earned: true, color: "from-emerald-400 to-teal-500" },
-  { id: 4, name: "Nhiếp ảnh gia", emoji: "📸", earned: false, color: "from-blue-400 to-indigo-500" },
-  { id: 5, name: "Nhà thám hiểm", emoji: "🧭", earned: false, color: "from-purple-400 to-violet-500" },
-  { id: 6, name: "Bậc thầy Fog", emoji: "🌫️", earned: false, color: "from-gray-400 to-slate-500" },
-];
+interface Badge {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  rarity: string;
+}
 
-const vouchers = [
-  { id: 1, name: "Cà phê Trung Nguyên", discount: "-30%", expiry: "30/04/2026" },
-  { id: 2, name: "Cafe Trống Đồng", discount: "Miễn phí", expiry: "15/05/2026" },
-];
+interface Voucher {
+  id: string;
+  title: string;
+  partner: string | null;
+  discount: string | null;
+  expires_at: string | null;
+}
+
+const rarityGradient: Record<string, string> = {
+  common: "from-emerald-400 to-teal-500",
+  rare: "from-blue-400 to-indigo-500",
+  epic: "from-purple-400 to-fuchsia-500",
+  legendary: "from-amber-400 to-orange-500",
+};
 
 const AchievementsScreen = () => {
-  const xp = 2450;
-  const nextLevel = 3000;
-  const level = 12;
+  const { user, signOut } = useAuth();
+  const { profile } = useProfile();
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [earnedIds, setEarnedIds] = useState<Set<string>>(new Set());
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const [{ data: badgesData }, { data: userBadges }, { data: vouchersData }] = await Promise.all([
+        supabase.from("badges").select("*"),
+        user ? supabase.from("user_badges").select("badge_id").eq("user_id", user.id) : Promise.resolve({ data: [] as any[] }),
+        supabase.from("vouchers").select("*").order("created_at", { ascending: false }),
+      ]);
+      setBadges((badgesData as Badge[]) || []);
+      setEarnedIds(new Set(((userBadges as any[]) || []).map((b) => b.badge_id)));
+      setVouchers((vouchersData as Voucher[]) || []);
+    };
+    load();
+  }, [user]);
+
+  const xp = profile?.xp ?? 0;
+  const level = profile?.level ?? 1;
+  const xpInLevel = xp % 500;
+  const xpToNext = 500;
 
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-foreground mb-1">Thành tựu</h1>
-        <p className="text-sm text-muted-foreground mb-6">Explorer's Vault</p>
-      </motion.div>
+      <div className="flex items-start justify-between mb-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Thành tựu</h1>
+          <p className="text-sm text-muted-foreground">
+            {profile?.display_name ?? "Explorer's Vault"}
+          </p>
+        </motion.div>
+        <button
+          onClick={signOut}
+          className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+          aria-label="Đăng xuất"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+      </div>
 
-      {/* XP Card */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -47,41 +92,44 @@ const AchievementsScreen = () => {
           <motion.div
             className="h-full rounded-full bg-primary-foreground/80"
             initial={{ width: 0 }}
-            animate={{ width: `${(xp / nextLevel) * 100}%` }}
+            animate={{ width: `${(xpInLevel / xpToNext) * 100}%` }}
             transition={{ duration: 1, delay: 0.3 }}
           />
         </div>
-        <p className="text-primary-foreground/70 text-xs">{nextLevel - xp} XP để lên Level {level + 1}</p>
+        <p className="text-primary-foreground/70 text-xs">
+          {xpToNext - xpInLevel} XP để lên Level {level + 1}
+        </p>
       </motion.div>
 
-      {/* Badges */}
       <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-        <Award className="w-5 h-5 text-primary" /> Huy chương
+        <Award className="w-5 h-5 text-primary" /> Huy chương ({earnedIds.size}/{badges.length})
       </h2>
       <div className="grid grid-cols-3 gap-3 mb-6">
-        {badges.map((badge, i) => (
-          <motion.div
-            key={badge.id}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.05 }}
-            className={`rounded-2xl p-3 text-center border ${
-              badge.earned
-                ? "bg-card border-primary/20 shadow-sm"
-                : "bg-muted/50 border-border/30 opacity-50"
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-xl mx-auto mb-2 flex items-center justify-center ${
-              badge.earned ? `bg-gradient-to-br ${badge.color}` : "bg-muted"
-            }`}>
-              <span className="text-xl">{badge.emoji}</span>
-            </div>
-            <p className="text-[10px] font-semibold text-foreground leading-tight">{badge.name}</p>
-          </motion.div>
-        ))}
+        {badges.map((badge, i) => {
+          const earned = earnedIds.has(badge.id);
+          return (
+            <motion.div
+              key={badge.id}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.05 }}
+              className={`rounded-2xl p-3 text-center border ${
+                earned ? "bg-card border-primary/20 shadow-sm" : "bg-muted/50 border-border/30 opacity-60"
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-xl mx-auto mb-2 flex items-center justify-center ${
+                  earned ? `bg-gradient-to-br ${rarityGradient[badge.rarity] ?? rarityGradient.common}` : "bg-muted"
+                }`}
+              >
+                <span className="text-xl">{badge.icon ?? "🏅"}</span>
+              </div>
+              <p className="text-[10px] font-semibold text-foreground leading-tight">{badge.name}</p>
+            </motion.div>
+          );
+        })}
       </div>
 
-      {/* Vouchers */}
       <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
         <Gift className="w-5 h-5 text-accent" /> Kho Voucher
       </h2>
@@ -97,11 +145,13 @@ const AchievementsScreen = () => {
             <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
               <Gift className="w-5 h-5 text-accent" />
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-foreground">{v.name}</p>
-              <p className="text-[10px] text-muted-foreground">HSD: {v.expiry}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{v.title}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {v.partner} {v.expires_at && `• HSD: ${new Date(v.expires_at).toLocaleDateString("vi-VN")}`}
+              </p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <span className="text-sm font-bold text-primary">{v.discount}</span>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </div>
