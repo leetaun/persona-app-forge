@@ -1,10 +1,22 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Award, MapPin, Clock, MessageCircle, Heart } from "lucide-react";
+import { Award, MapPin, Clock, MessageCircle, Heart, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface FeedPost {
   id: string;
@@ -21,8 +33,20 @@ interface FeedPost {
 
 const FeedScreen = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const deletePost = async (post: FeedPost) => {
+    if (!user || post.user_id !== user.id) return;
+    const { error } = await supabase.from("posts").delete().eq("id", post.id);
+    if (error) {
+      toast({ title: "Không xoá được bài", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    toast({ title: "Đã gỡ bài viết" });
+  };
 
   const loadPosts = async () => {
     const { data: rawPosts } = await supabase
@@ -146,6 +170,35 @@ const FeedScreen = () => {
                   <Award className="w-3 h-3 text-primary" />
                   <span className="text-[10px] font-semibold text-primary">Verified</span>
                 </div>
+                {user?.id === item.user_id && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        className="w-8 h-8 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive flex-shrink-0 transition-colors"
+                        aria-label="Gỡ bài"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Gỡ bài viết này?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Bài viết sẽ bị xoá khỏi feed. Hành động này không thể hoàn tác.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deletePost(item)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Gỡ bài
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
 
               <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
