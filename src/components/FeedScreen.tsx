@@ -33,8 +33,20 @@ interface FeedPost {
 
 const FeedScreen = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const deletePost = async (post: FeedPost) => {
+    if (!user || post.user_id !== user.id) return;
+    const { error } = await supabase.from("posts").delete().eq("id", post.id);
+    if (error) {
+      toast({ title: "Không xoá được bài", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    toast({ title: "Đã gỡ bài viết" });
+  };
 
   const loadPosts = async () => {
     const { data: rawPosts } = await supabase
