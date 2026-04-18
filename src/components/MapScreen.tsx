@@ -306,7 +306,7 @@ const MapScreen = () => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="absolute bottom-6 left-4 right-4 z-[400]"
+        className="absolute bottom-24 left-4 right-4 z-[400]"
       >
         <div className="glass-surface rounded-2xl p-3 shadow-lg">
           <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2 px-1">
