@@ -1,34 +1,43 @@
 import { motion } from "framer-motion";
-import { Gem, Landmark, Sun, ChevronRight } from "lucide-react";
+import { Landmark, UtensilsCrossed, Palette, BedDouble, ChevronRight } from "lucide-react";
 
-type PersonaId = "hidden_gems" | "spiritual" | "golden_hour";
+type PersonaId = "culture" | "food" | "art" | "rest";
 
 const personas = [
   {
-    id: "hidden_gems" as PersonaId,
-    title: "Hidden Gems",
-    subtitle: "Du lịch Bí ẩn",
-    description: "Khám phá những địa điểm độc đáo chỉ người bản địa mới biết",
-    icon: Gem,
-    gradient: "from-emerald-500 to-teal-600",
-    bgClass: "bg-secondary",
-  },
-  {
-    id: "spiritual" as PersonaId,
-    title: "Check-in Tâm linh",
-    subtitle: "Văn hóa & Lịch sử",
-    description: "Tập trung vào đền, chùa và các di tích lịch sử cổ",
+    id: "culture" as PersonaId,
+    title: "Văn hóa - Tâm linh",
+    subtitle: "Đền, chùa & di tích",
+    description: "Khám phá các đền, chùa cổ kính và di tích lịch sử của Thăng Long",
     icon: Landmark,
     gradient: "from-amber-500 to-orange-600",
     bgClass: "bg-accent/10",
   },
   {
-    id: "golden_hour" as PersonaId,
-    title: "Săn ảnh Giờ vàng",
-    subtitle: "Kiến trúc & Ánh sáng",
-    description: "Gợi ý địa điểm có ánh sáng lý tưởng theo từng khung giờ",
-    icon: Sun,
-    gradient: "from-yellow-400 to-amber-500",
+    id: "food" as PersonaId,
+    title: "Ẩm thực",
+    subtitle: "Nhà hàng & quán ngon",
+    description: "Những địa chỉ ăn uống được yêu thích nhất Hà Nội",
+    icon: UtensilsCrossed,
+    gradient: "from-rose-500 to-red-600",
+    bgClass: "bg-secondary",
+  },
+  {
+    id: "art" as PersonaId,
+    title: "Nghệ thuật",
+    subtitle: "Bảo tàng & di sản",
+    description: "Trải nghiệm các không gian nghệ thuật, bảo tàng và di tích lịch sử",
+    icon: Palette,
+    gradient: "from-violet-500 to-purple-600",
+    bgClass: "bg-primary/5",
+  },
+  {
+    id: "rest" as PersonaId,
+    title: "Nghỉ ngơi",
+    subtitle: "Khách sạn & spa",
+    description: "Lựa chọn lưu trú thoải mái và thư giãn giữa lòng thủ đô",
+    icon: BedDouble,
+    gradient: "from-emerald-500 to-teal-600",
     bgClass: "bg-xp/5",
   },
 ];
@@ -41,8 +50,8 @@ const PersonaScreen = ({ onOpenPersona }: PersonaScreenProps) => {
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-foreground mb-1">Gợi ý Khám phá</h1>
-        <p className="text-sm text-muted-foreground mb-6">Chọn phong cách hành trình để xem địa điểm gợi ý</p>
+        <h1 className="text-2xl font-bold text-foreground mb-1">Khám phá</h1>
+        <p className="text-sm text-muted-foreground mb-6">Chọn danh mục để xem các địa điểm gợi ý</p>
       </motion.div>
 
       <div className="space-y-4">
@@ -75,18 +84,6 @@ const PersonaScreen = ({ onOpenPersona }: PersonaScreenProps) => {
           </motion.div>
         ))}
       </div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="mt-8 p-4 rounded-2xl border border-primary/20 bg-primary/5"
-      >
-        <p className="text-xs font-semibold text-primary mb-1">💡 Mẹo</p>
-        <p className="text-xs text-muted-foreground">
-          Mỗi phong cách mở ra danh sách địa điểm khác nhau giúp bạn lên lịch trình nhanh hơn.
-        </p>
-      </motion.div>
     </div>
   );
 };
