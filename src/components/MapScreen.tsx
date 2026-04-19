@@ -110,6 +110,9 @@ const MapScreen = () => {
   const [loading, setLoading] = useState(true);
   const [exploreMode, setExploreMode] = useState(true); // true = Khám phá, false = Tham quan
   const [mapReady, setMapReady] = useState(false);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const hasCenteredRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
 
   // Init map when token available
   useEffect(() => {
