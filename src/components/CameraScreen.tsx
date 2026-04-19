@@ -215,6 +215,16 @@ const CameraScreen = () => {
               <Loader2 className="w-8 h-8 text-white animate-spin" />
             </div>
           )}
+
+          {/* 3x3 alignment grid (pro camera style) */}
+          {cameraReady && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/30" />
+              <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/30" />
+              <div className="absolute top-1/3 left-0 right-0 h-px bg-white/30" />
+              <div className="absolute top-2/3 left-0 right-0 h-px bg-white/30" />
+            </div>
+          )}
         </div>
 
         {/* Bottom controls */}

@@ -380,17 +380,6 @@ const MapScreen = () => {
         </div>
       </motion.div>
 
-      {/* Reset token (small) */}
-      <button
-        onClick={() => {
-          localStorage.removeItem(TOKEN_KEY);
-          setToken("");
-        }}
-        className="absolute top-4 right-4 z-[400] text-[10px] text-muted-foreground/70 hover:text-foreground bg-background/60 rounded px-2 py-1"
-      >
-        Đổi token
-      </button>
-
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-[500]">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
