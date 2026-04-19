@@ -320,7 +320,7 @@ const MapScreen = () => {
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 hsla(152,55%,42%,.6)}50%{box-shadow:0 0 0 14px hsla(152,55%,42%,0)}}`}</style>
+      <style>{`@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 hsla(152,55%,42%,.6)}50%{box-shadow:0 0 0 14px hsla(152,55%,42%,0)}}@keyframes userPulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(3);opacity:0}}`}</style>
 
       <div ref={containerRef} className="absolute inset-0" />
 
