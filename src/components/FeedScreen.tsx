@@ -213,7 +213,27 @@ const FeedScreen = () => {
               </div>
 
               <div className="p-4 pt-3">
-                {item.caption && <p className="text-sm text-foreground mb-3">{item.caption}</p>}
+                {(() => {
+                  const { rating, text } = parseCaption(item.caption);
+                  return (
+                    <>
+                      {rating > 0 && (
+                        <div className="flex items-center gap-0.5 mb-2">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              className={`w-4 h-4 ${
+                                n <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-1 text-xs font-semibold text-foreground">{rating}.0</span>
+                        </div>
+                      )}
+                      {text && <p className="text-sm text-foreground mb-3">{text}</p>}
+                    </>
+                  );
+                })()}
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => toggleReaction(item)}
