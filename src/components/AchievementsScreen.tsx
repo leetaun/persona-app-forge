@@ -59,10 +59,10 @@ const AchievementsScreen = () => {
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
       <div className="flex items-start justify-between mb-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-bold text-foreground mb-1">
-            Xin chào, {profile?.display_name ?? "Explorer"} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground">Thành tựu của bạn</p>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Thành tựu</h1>
+          <p className="text-sm text-muted-foreground">
+            Xin chào, {profile?.display_name ?? user?.email ?? "Explorer"}
+          </p>
         </motion.div>
         <button
           onClick={signOut}
