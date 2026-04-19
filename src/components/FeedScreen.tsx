@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Award, MapPin, Clock, MessageCircle, Heart, Trash2 } from "lucide-react";
+import { Award, MapPin, Clock, MessageCircle, Heart, Trash2, Star } from "lucide-react";
+
+const parseCaption = (raw: string | null): { rating: number; text: string } => {
+  if (!raw) return { rating: 0, text: "" };
+  const m = raw.match(/^\[★(\d)\]\s*/);
+  if (m) return { rating: parseInt(m[1], 10), text: raw.slice(m[0].length) };
+  return { rating: 0, text: raw };
+};
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
