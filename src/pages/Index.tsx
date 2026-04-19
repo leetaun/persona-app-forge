@@ -5,23 +5,14 @@ import PersonaScreen from "@/components/PersonaScreen";
 import CameraScreen from "@/components/CameraScreen";
 import FeedScreen from "@/components/FeedScreen";
 import AchievementsScreen from "@/components/AchievementsScreen";
-import HiddenGemsScreen from "@/components/HiddenGemsScreen";
 import SuggestionsScreen, { SuggestionCategory } from "@/components/SuggestionsScreen";
 
 type Tab = "map" | "persona" | "camera" | "feed" | "achievements";
-type PersonaId = "hidden_gems" | SuggestionCategory;
+type PersonaId = SuggestionCategory;
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("map");
   const [openPersona, setOpenPersona] = useState<PersonaId | null>(null);
-
-  if (openPersona === "hidden_gems") {
-    return (
-      <div className="h-screen w-full max-w-lg mx-auto relative overflow-hidden bg-background">
-        <HiddenGemsScreen onBack={() => setOpenPersona(null)} />
-      </div>
-    );
-  }
 
   if (openPersona) {
     return (
