@@ -223,6 +223,56 @@ const MapScreen = () => {
     });
   }, [checkpoints, unlockedIds, exploreMode, mapReady]);
 
+  // Geolocation: blue dot with pulse, center only once on first fix
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return;
+    if (!("geolocation" in navigator)) return;
+
+    const updatePosition = (pos: GeolocationPosition) => {
+      const { latitude, longitude } = pos.coords;
+      const lngLat: [number, number] = [longitude, latitude];
+
+      if (!userMarkerRef.current) {
+        const el = document.createElement("div");
+        el.style.cssText = `position:relative;width:20px;height:20px;`;
+        el.innerHTML = `
+          <div style="position:absolute;inset:0;border-radius:9999px;background:#4285F4;opacity:.25;animation:userPulse 2s ease-out infinite;"></div>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:9999px;background:#4285F4;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>
+        `;
+        userMarkerRef.current = new mapboxgl.Marker({ element: el })
+          .setLngLat(lngLat)
+          .addTo(mapRef.current!);
+      } else {
+        userMarkerRef.current.setLngLat(lngLat);
+      }
+
+      if (!hasCenteredRef.current) {
+        hasCenteredRef.current = true;
+        mapRef.current!.flyTo({ center: lngLat, zoom: 15, speed: 1.4, essential: true });
+      }
+    };
+
+    const onError = (err: GeolocationPositionError) => {
+      console.warn("Geolocation error:", err.message);
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(updatePosition, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 15000,
+    });
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+      hasCenteredRef.current = false;
+    };
+  }, [mapReady]);
+
   const flyToArea = (a: AreaDef) => {
     mapRef.current?.flyTo({ center: a.center, zoom: a.zoom, speed: 1.2, curve: 1.6, essential: true });
   };
