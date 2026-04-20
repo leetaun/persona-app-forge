@@ -156,6 +156,8 @@ const CameraScreen = () => {
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
       const photo_url = pub.publicUrl;
 
+      const checkpointXp = getXpForCheckpoint(selected);
+
       const { data: checkIn, error: ciErr } = await supabase
         .from("check_ins")
         .insert({
@@ -164,7 +166,7 @@ const CameraScreen = () => {
           photo_url,
           lat: coords?.lat ?? null,
           lng: coords?.lng ?? null,
-          xp_earned: selected.xp_reward,
+          xp_earned: checkpointXp,
         })
         .select()
         .single();
@@ -182,7 +184,7 @@ const CameraScreen = () => {
         location_name: selected.name,
       });
 
-      // Bonus +20 XP for sharing post to feed (on top of checkpoint XP awarded by trigger)
+      // Bonus +20 XP for sharing post to feed (checkpoint XP added by DB trigger)
       const POST_XP = 20;
       const { data: prof } = await supabase
         .from("profiles")
@@ -195,8 +197,13 @@ const CameraScreen = () => {
         .update({ xp: currentXp + POST_XP })
         .eq("user_id", user.id);
 
+      // Optimistic UI update so XP bar grows instantly
+      addXpOptimistic(checkpointXp + POST_XP);
+      // Re-sync from DB shortly after to ensure exact value
+      setTimeout(() => refreshProfile(), 800);
+
       toast({
-        title: `+${selected.xp_reward} XP! 🎉`,
+        title: `+${checkpointXp} XP! 🎉`,
         description: `Check-in tại ${selected.name} đã được đăng.`,
       });
       toast({
