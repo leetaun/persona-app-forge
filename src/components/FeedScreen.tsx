@@ -290,8 +290,15 @@ const FeedScreen = () => {
                     <Award className={`w-4 h-4 ${item.user_reacted ? "fill-primary" : ""}`} />
                     <span className="text-xs">{item.reaction_count}</span>
                   </button>
-                  <button className="flex items-center gap-1.5 text-muted-foreground">
-                    <Heart className="w-4 h-4" />
+                  <button
+                    onClick={() => toggleLike(item)}
+                    className={`flex items-center gap-1.5 transition-colors ${
+                      item.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
+                    }`}
+                    aria-label={item.user_liked ? "Bỏ thích" : "Thả tim"}
+                  >
+                    <Heart className={`w-4 h-4 ${item.user_liked ? "fill-red-500" : ""}`} />
+                    <span className="text-xs">{item.like_count}</span>
                   </button>
                   <button className="flex items-center gap-1.5 text-muted-foreground">
                     <MessageCircle className="w-4 h-4" />
