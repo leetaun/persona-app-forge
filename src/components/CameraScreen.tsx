@@ -39,6 +39,7 @@ const getXpForCheckpoint = (c: Checkpoint | null) =>
 const CameraScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { addXpOptimistic, refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
