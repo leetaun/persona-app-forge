@@ -25,6 +25,16 @@ const SMART_TAGS: Record<string, string[]> = {
 
 type Step = "camera" | "preview" | "form";
 
+// Dynamic XP per area group (source of truth, mirrors DB checkpoints.xp_reward)
+const XP_BY_AREA: Record<string, number> = {
+  "Văn hóa - Tâm linh": 150,
+  "Nghệ thuật": 120,
+  "Nghỉ ngơi": 80,
+  "Ẩm thực": 50,
+};
+const getXpForCheckpoint = (c: Checkpoint | null) =>
+  (c?.area && XP_BY_AREA[c.area]) ?? c?.xp_reward ?? 0;
+
 const CameraScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
