@@ -36,6 +36,8 @@ interface FeedPost {
   avatar_url: string | null;
   reaction_count: number;
   user_reacted: boolean;
+  like_count: number;
+  user_liked: boolean;
 }
 
 const FeedScreen = () => {
