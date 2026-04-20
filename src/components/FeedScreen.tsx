@@ -130,6 +130,44 @@ const FeedScreen = () => {
     }
   };
 
+  const toggleLike = async (post: FeedPost) => {
+    if (!user) return;
+    const liked = post.user_liked;
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? { ...p, user_liked: !liked, like_count: p.like_count + (liked ? -1 : 1) }
+          : p
+      )
+    );
+    if (liked) {
+      const { error } = await supabase
+        .from("reactions")
+        .delete()
+        .match({ post_id: post.id, user_id: user.id, medal: "like" });
+      if (error) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id ? { ...p, user_liked: true, like_count: p.like_count + 1 } : p
+          )
+        );
+        toast({ title: "Không thể bỏ thích", description: error.message, variant: "destructive" });
+      }
+    } else {
+      const { error } = await supabase
+        .from("reactions")
+        .insert({ post_id: post.id, user_id: user.id, medal: "like" });
+      if (error) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id ? { ...p, user_liked: false, like_count: p.like_count - 1 } : p
+          )
+        );
+        toast({ title: "Không thả tim được", description: error.message, variant: "destructive" });
+      }
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
