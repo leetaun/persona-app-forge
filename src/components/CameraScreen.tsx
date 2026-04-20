@@ -170,9 +170,26 @@ const CameraScreen = () => {
         location_name: selected.name,
       });
 
+      // Bonus +20 XP for sharing post to feed (on top of checkpoint XP awarded by trigger)
+      const POST_XP = 20;
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("xp")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const currentXp = prof?.xp ?? 0;
+      await supabase
+        .from("profiles")
+        .update({ xp: currentXp + POST_XP })
+        .eq("user_id", user.id);
+
       toast({
         title: `+${selected.xp_reward} XP! 🎉`,
         description: `Check-in tại ${selected.name} đã được đăng.`,
+      });
+      toast({
+        title: "Tuyệt vời! 🌟",
+        description: `Bạn vừa nhận được ${POST_XP} XP cho bài viết này.`,
       });
       resetAll();
     } catch (err: any) {
