@@ -4,6 +4,7 @@ import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send }
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
 
 interface Checkpoint {
   id: string;
