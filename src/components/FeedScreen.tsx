@@ -36,6 +36,8 @@ interface FeedPost {
   avatar_url: string | null;
   reaction_count: number;
   user_reacted: boolean;
+  like_count: number;
+  user_liked: boolean;
 }
 
 const FeedScreen = () => {
@@ -72,28 +74,34 @@ const FeedScreen = () => {
 
     const [{ data: profiles }, { data: reactions }] = await Promise.all([
       supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", userIds),
-      supabase.from("reactions").select("post_id,user_id").in("post_id", postIds),
+      supabase.from("reactions").select("post_id,user_id,medal").in("post_id", postIds),
     ]);
 
     const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
     const reactionMap = new Map<string, { count: number; mine: boolean }>();
+    const likeMap = new Map<string, { count: number; mine: boolean }>();
     (reactions || []).forEach((r) => {
-      const cur = reactionMap.get(r.post_id) || { count: 0, mine: false };
+      const target = r.medal === "like" ? likeMap : reactionMap;
+      const cur = target.get(r.post_id) || { count: 0, mine: false };
       cur.count++;
       if (r.user_id === user?.id) cur.mine = true;
-      reactionMap.set(r.post_id, cur);
+      target.set(r.post_id, cur);
     });
 
     setPosts(
       rawPosts.map((p) => {
         const prof = profileMap.get(p.user_id);
         const rx = reactionMap.get(p.id) || { count: 0, mine: false };
+        const lk = likeMap.get(p.id) || { count: 0, mine: false };
+        const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
         return {
           ...p,
-          display_name: prof?.display_name ?? "Khách",
+          display_name: prof?.display_name ?? fallbackName,
           avatar_url: prof?.avatar_url ?? null,
           reaction_count: rx.count,
           user_reacted: rx.mine,
+          like_count: lk.count,
+          user_liked: lk.mine,
         };
       })
     );
@@ -119,6 +127,44 @@ const FeedScreen = () => {
       await supabase.from("reactions").delete().match({ post_id: post.id, user_id: user.id, medal: "cheer" });
     } else {
       await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
+    }
+  };
+
+  const toggleLike = async (post: FeedPost) => {
+    if (!user) return;
+    const liked = post.user_liked;
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? { ...p, user_liked: !liked, like_count: p.like_count + (liked ? -1 : 1) }
+          : p
+      )
+    );
+    if (liked) {
+      const { error } = await supabase
+        .from("reactions")
+        .delete()
+        .match({ post_id: post.id, user_id: user.id, medal: "like" });
+      if (error) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id ? { ...p, user_liked: true, like_count: p.like_count + 1 } : p
+          )
+        );
+        toast({ title: "Không thể bỏ thích", description: error.message, variant: "destructive" });
+      }
+    } else {
+      const { error } = await supabase
+        .from("reactions")
+        .insert({ post_id: post.id, user_id: user.id, medal: "like" });
+      if (error) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id ? { ...p, user_liked: false, like_count: p.like_count - 1 } : p
+          )
+        );
+        toast({ title: "Không thả tim được", description: error.message, variant: "destructive" });
+      }
     }
   };
 
@@ -244,8 +290,15 @@ const FeedScreen = () => {
                     <Award className={`w-4 h-4 ${item.user_reacted ? "fill-primary" : ""}`} />
                     <span className="text-xs">{item.reaction_count}</span>
                   </button>
-                  <button className="flex items-center gap-1.5 text-muted-foreground">
-                    <Heart className="w-4 h-4" />
+                  <button
+                    onClick={() => toggleLike(item)}
+                    className={`flex items-center gap-1.5 transition-colors ${
+                      item.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
+                    }`}
+                    aria-label={item.user_liked ? "Bỏ thích" : "Thả tim"}
+                  >
+                    <Heart className={`w-4 h-4 ${item.user_liked ? "fill-red-500" : ""}`} />
+                    <span className="text-xs">{item.like_count}</span>
                   </button>
                   <button className="flex items-center gap-1.5 text-muted-foreground">
                     <MessageCircle className="w-4 h-4" />
