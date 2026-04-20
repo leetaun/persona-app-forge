@@ -4,6 +4,7 @@ import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send }
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
 
 interface Checkpoint {
   id: string;
@@ -25,9 +26,20 @@ const SMART_TAGS: Record<string, string[]> = {
 
 type Step = "camera" | "preview" | "form";
 
+// Dynamic XP per area group (source of truth, mirrors DB checkpoints.xp_reward)
+const XP_BY_AREA: Record<string, number> = {
+  "Văn hóa - Tâm linh": 150,
+  "Nghệ thuật": 120,
+  "Nghỉ ngơi": 80,
+  "Ẩm thực": 50,
+};
+const getXpForCheckpoint = (c: Checkpoint | null) =>
+  (c?.area && XP_BY_AREA[c.area]) ?? c?.xp_reward ?? 0;
+
 const CameraScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { addXpOptimistic, refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -144,6 +156,8 @@ const CameraScreen = () => {
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
       const photo_url = pub.publicUrl;
 
+      const checkpointXp = getXpForCheckpoint(selected);
+
       const { data: checkIn, error: ciErr } = await supabase
         .from("check_ins")
         .insert({
@@ -152,7 +166,7 @@ const CameraScreen = () => {
           photo_url,
           lat: coords?.lat ?? null,
           lng: coords?.lng ?? null,
-          xp_earned: selected.xp_reward,
+          xp_earned: checkpointXp,
         })
         .select()
         .single();
@@ -170,7 +184,7 @@ const CameraScreen = () => {
         location_name: selected.name,
       });
 
-      // Bonus +20 XP for sharing post to feed (on top of checkpoint XP awarded by trigger)
+      // Bonus +20 XP for sharing post to feed (checkpoint XP added by DB trigger)
       const POST_XP = 20;
       const { data: prof } = await supabase
         .from("profiles")
@@ -183,8 +197,13 @@ const CameraScreen = () => {
         .update({ xp: currentXp + POST_XP })
         .eq("user_id", user.id);
 
+      // Optimistic UI update so XP bar grows instantly
+      addXpOptimistic(checkpointXp + POST_XP);
+      // Re-sync from DB shortly after to ensure exact value
+      setTimeout(() => refreshProfile(), 800);
+
       toast({
-        title: `+${selected.xp_reward} XP! 🎉`,
+        title: `+${checkpointXp} XP! 🎉`,
         description: `Check-in tại ${selected.name} đã được đăng.`,
       });
       toast({
@@ -439,7 +458,7 @@ const CameraScreen = () => {
           ) : (
             <>
               <Camera className="w-4 h-4" />
-              Đăng bài (+{selected?.xp_reward ?? 0} XP)
+              Đăng bài (+{getXpForCheckpoint(selected)} XP)
             </>
           )}
         </button>
