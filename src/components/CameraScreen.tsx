@@ -458,7 +458,7 @@ const CameraScreen = () => {
           ) : (
             <>
               <Camera className="w-4 h-4" />
-              Đăng bài (+{selected?.xp_reward ?? 0} XP)
+              Đăng bài (+{getXpForCheckpoint(selected)} XP)
             </>
           )}
         </button>
