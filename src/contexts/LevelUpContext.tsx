@@ -54,7 +54,7 @@ export const LevelUpProvider = ({ children }: { children: ReactNode }) => {
             transition={{ type: "spring", stiffness: 200 }}
             className="flex flex-col items-center gap-3 py-4"
           >
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
               <Trophy className="w-10 h-10 text-primary-foreground" />
             </div>
             <p className="text-lg font-bold text-foreground">
