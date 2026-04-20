@@ -98,9 +98,9 @@ const AchievementsScreen = () => {
       </motion.div>
 
       <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-        <Award className="w-5 h-5 text-primary" /> Huy hiệu cấp độ ({currentLevel}/5)
+        <Award className="w-5 h-5 text-primary" /> Tủ Huy Hiệu ({currentLevel}/5)
       </h2>
-      <div className="grid grid-cols-5 gap-2 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         {LEVEL_BADGES.map((badge, i) => {
           const earned = currentLevel >= badge.level;
           return (
@@ -108,24 +108,25 @@ const AchievementsScreen = () => {
               key={badge.level}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              className={`rounded-2xl p-2 text-center border ${
-                earned ? "bg-card border-primary/20 shadow-sm" : "bg-muted/40 border-border/30"
+              transition={{ delay: i * 0.08 }}
+              className={`relative bg-card rounded-2xl p-3 text-center border shadow-sm transition ${
+                earned ? "border-primary/30" : "border-border/40 grayscale opacity-60"
               }`}
             >
               <div
-                className={`w-10 h-10 rounded-xl mx-auto mb-1 flex items-center justify-center ${
-                  earned ? `bg-gradient-to-br ${badge.gradient}` : "bg-muted grayscale"
-                }`}
+                className={`w-14 h-14 rounded-2xl mx-auto mb-2 flex items-center justify-center bg-gradient-to-br ${badge.gradient} shadow-md`}
               >
-                <span className="text-lg">{earned ? badge.icon : "🔒"}</span>
+                <span className="text-2xl">{badge.icon}</span>
               </div>
-              <p className="text-[9px] font-semibold text-foreground leading-tight">
-                Lv{badge.level}
-              </p>
-              <p className="text-[8px] text-muted-foreground leading-tight truncate">
+              <p className="text-xs font-bold text-foreground leading-tight">
                 {badge.name}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Lv {badge.level}</p>
+              {!earned && (
+                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-muted flex items-center justify-center">
+                  <Lock className="w-2.5 h-2.5 text-muted-foreground" />
+                </div>
+              )}
             </motion.div>
           );
         })}
