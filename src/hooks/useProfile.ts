@@ -52,5 +52,10 @@ export const useProfile = () => {
     };
   }, [user?.id]);
 
-  return { profile, loading, refresh };
+  // Optimistic local XP update (instant UI bar growth)
+  const addXpOptimistic = useCallback((delta: number) => {
+    setProfile((p) => (p ? { ...p, xp: p.xp + delta } : p));
+  }, []);
+
+  return { profile, loading, refresh, addXpOptimistic };
 };
