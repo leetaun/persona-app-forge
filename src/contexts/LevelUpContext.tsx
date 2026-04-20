@@ -55,7 +55,7 @@ export const LevelUpProvider = ({ children }: { children: ReactNode }) => {
             className="flex flex-col items-center gap-3 py-4"
           >
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-              <Trophy className="w-10 h-10 text-white" />
+              <Trophy className="w-10 h-10 text-primary-foreground" />
             </div>
             <p className="text-lg font-bold text-foreground">
               Chúc mừng bạn đã đạt cấp độ {newLevel ? levelName(newLevel) : ""}!
