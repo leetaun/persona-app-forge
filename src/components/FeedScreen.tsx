@@ -74,28 +74,34 @@ const FeedScreen = () => {
 
     const [{ data: profiles }, { data: reactions }] = await Promise.all([
       supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", userIds),
-      supabase.from("reactions").select("post_id,user_id").in("post_id", postIds),
+      supabase.from("reactions").select("post_id,user_id,medal").in("post_id", postIds),
     ]);
 
     const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
     const reactionMap = new Map<string, { count: number; mine: boolean }>();
+    const likeMap = new Map<string, { count: number; mine: boolean }>();
     (reactions || []).forEach((r) => {
-      const cur = reactionMap.get(r.post_id) || { count: 0, mine: false };
+      const target = r.medal === "like" ? likeMap : reactionMap;
+      const cur = target.get(r.post_id) || { count: 0, mine: false };
       cur.count++;
       if (r.user_id === user?.id) cur.mine = true;
-      reactionMap.set(r.post_id, cur);
+      target.set(r.post_id, cur);
     });
 
     setPosts(
       rawPosts.map((p) => {
         const prof = profileMap.get(p.user_id);
         const rx = reactionMap.get(p.id) || { count: 0, mine: false };
+        const lk = likeMap.get(p.id) || { count: 0, mine: false };
+        const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
         return {
           ...p,
-          display_name: prof?.display_name ?? "Khách",
+          display_name: prof?.display_name ?? fallbackName,
           avatar_url: prof?.avatar_url ?? null,
           reaction_count: rx.count,
           user_reacted: rx.mine,
+          like_count: lk.count,
+          user_liked: lk.mine,
         };
       })
     );
