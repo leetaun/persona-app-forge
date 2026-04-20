@@ -36,5 +36,21 @@ export const useProfile = () => {
     refresh();
   }, [refresh]);
 
+  // Realtime: react to profile changes (xp/level updates from anywhere)
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
+        (payload) => setProfile(payload.new as Profile)
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [user?.id]);
+
   return { profile, loading, refresh };
 };
