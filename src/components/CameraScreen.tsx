@@ -39,7 +39,7 @@ const getXpForCheckpoint = (c: Checkpoint | null) =>
 const CameraScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { addXpOptimistic, refresh: refreshProfile } = useProfile();
+  const { refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -143,80 +143,96 @@ const CameraScreen = () => {
     setStep("camera");
   };
 
-  const submitCheckin = async () => {
-    if (!user || !photoBlob || !selected) return;
-    setSubmitting(true);
-    try {
-      const path = `${user.id}/${Date.now()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from("checkin-photos")
-        .upload(path, photoBlob, { contentType: "image/jpeg" });
-      if (upErr) throw upErr;
+const submitCheckin = async () => {
+  if (!user || !photoBlob || !selected) return;
+  setSubmitting(true);
 
-      const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
-      const photo_url = pub.publicUrl;
+  try {
+    const path = `${user.id}/${Date.now()}.jpg`;
 
-      const checkpointXp = getXpForCheckpoint(selected);
+    const { error: upErr } = await supabase.storage
+      .from("checkin-photos")
+      .upload(path, photoBlob, { contentType: "image/jpeg" });
+    if (upErr) throw upErr;
 
-      const { data: checkIn, error: ciErr } = await supabase
-        .from("check_ins")
-        .insert({
-          user_id: user.id,
-          checkpoint_id: selected.id,
-          photo_url,
-          lat: coords?.lat ?? null,
-          lng: coords?.lng ?? null,
-          xp_earned: checkpointXp,
-        })
-        .select()
-        .single();
-      if (ciErr) throw ciErr;
+    const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
+    const photo_url = pub.publicUrl;
 
-      // Embed rating into caption with marker so feed can parse it
-      const ratingMarker = rating > 0 ? `[★${rating}]` : "";
-      const fullCaption = [ratingMarker, caption.trim()].filter(Boolean).join(" ");
+    const earnedXp = getXpForCheckpoint(selected);
 
-      await supabase.from("posts").insert({
+    const { data: checkIn, error: ciErr } = await supabase
+      .from("check_ins")
+      .insert({
         user_id: user.id,
-        check_in_id: checkIn.id,
+        checkpoint_id: selected.id,
         photo_url,
-        caption: fullCaption || null,
-        location_name: selected.name,
-      });
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
+        xp_earned: earnedXp,
+      })
+      .select()
+      .single();
 
-      // Bonus +20 XP for sharing post to feed (checkpoint XP added by DB trigger)
-      const POST_XP = 20;
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("xp")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const currentXp = prof?.xp ?? 0;
-      await supabase
-        .from("profiles")
-        .update({ xp: currentXp + POST_XP })
-        .eq("user_id", user.id);
+    if (ciErr) throw ciErr;
 
-      // Optimistic UI update so XP bar grows instantly
-      addXpOptimistic(checkpointXp + POST_XP);
-      // Re-sync from DB shortly after to ensure exact value
-      setTimeout(() => refreshProfile(), 800);
+    const ratingMarker = rating > 0 ? `[★${rating}]` : "";
+    const fullCaption = [ratingMarker, caption.trim()].filter(Boolean).join(" ");
 
-      toast({
-        title: `+${checkpointXp} XP! 🎉`,
-        description: `Check-in tại ${selected.name} đã được đăng.`,
-      });
-      toast({
-        title: "Tuyệt vời! 🌟",
-        description: `Bạn vừa nhận được ${POST_XP} XP cho bài viết này.`,
-      });
-      resetAll();
-    } catch (err: any) {
-      toast({ title: "Lỗi", description: err.message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const { error: postErr } = await supabase.from("posts").insert({
+      user_id: user.id,
+      check_in_id: checkIn.id,
+      photo_url,
+      caption: fullCaption || null,
+      location_name: selected.name,
+    });
+
+    if (postErr) throw postErr;
+
+    const { data: prof, error: profErr } = await supabase
+      .from("profiles")
+      .select("user_id, xp, display_name, avatar_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profErr) throw profErr;
+
+    const currentXp = prof?.xp ?? 0;
+
+    const { data: savedProfile, error: xpErr } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: user.id,
+          xp: currentXp + earnedXp,
+          display_name: prof?.display_name ?? user.email?.split("@")[0] ?? "Explorer",
+          avatar_url: prof?.avatar_url ?? null,
+        },
+        { onConflict: "user_id" }
+      )
+      .select()
+      .maybeSingle();
+
+    if (xpErr) throw xpErr;
+    if (!savedProfile) throw new Error("Không lưu được XP vào profiles.");
+
+    await refreshProfile();
+
+    toast({
+      title: `+${earnedXp} XP! 🎉`,
+      description: `Check-in tại ${selected.name} đã được đăng thành công.`,
+    });
+
+    resetAll();
+  } catch (err: any) {
+    toast({
+      title: "Lỗi",
+      description: err.message,
+      variant: "destructive",
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   // Group checkpoints by area for the select
   const grouped = checkpoints.reduce<Record<string, Checkpoint[]>>((acc, c) => {
@@ -458,7 +474,7 @@ const CameraScreen = () => {
           ) : (
             <>
               <Camera className="w-4 h-4" />
-              Đăng bài (+{getXpForCheckpoint(selected)} XP)
+              Đăng bài (+{selected ? getXpForCheckpoint(selected) : 0} XP)
             </>
           )}
         </button>
