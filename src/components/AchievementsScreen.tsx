@@ -74,7 +74,7 @@ const AchievementsScreen = () => {
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-primary-foreground" />
             <span className="text-primary-foreground font-bold">
-              Lv {currentLevel} · {levelName(currentLevel)}
+              Level {currentLevel} · {levelName(currentLevel)}
             </span>
           </div>
           <div className="flex items-center gap-1 bg-primary-foreground/20 rounded-full px-3 py-1">
@@ -92,7 +92,7 @@ const AchievementsScreen = () => {
         </div>
         <p className="text-primary-foreground/70 text-xs">
           {nextThreshold
-            ? `${nextThreshold - xp} XP để lên ${LEVEL_NAMES[currentLevel + 1] ?? `Lv ${currentLevel + 1}`}`
+            ? `${nextThreshold - xp} XP để lên ${LEVEL_NAMES[currentLevel + 1] ?? `Level ${currentLevel + 1}`}`
             : "Bạn đã đạt cấp tối đa! 🏆"}
         </p>
       </motion.div>
@@ -121,7 +121,7 @@ const AchievementsScreen = () => {
               <p className="text-xs font-bold text-foreground leading-tight">
                 {badge.name}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Lv {badge.level}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Level {badge.level}</p>
               {!earned && (
                 <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-muted flex items-center justify-center">
                   <Lock className="w-2.5 h-2.5 text-muted-foreground" />
@@ -161,7 +161,7 @@ const AchievementsScreen = () => {
                 <p className="text-[10px] text-muted-foreground">
                   {unlocked
                     ? `${v.partner ?? ""}${v.expires_at ? ` • HSD: ${new Date(v.expires_at).toLocaleDateString("vi-VN")}` : ""}`
-                    : `Đạt Lv${required} (${LEVEL_NAMES[required]}) để mở khóa`}
+                    : `Đạt Level${required} (${LEVEL_NAMES[required]}) để mở khóa`}
                 </p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
