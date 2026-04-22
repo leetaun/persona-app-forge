@@ -40,11 +40,42 @@ interface FeedPost {
   user_liked: boolean;
 }
 
+const LIKE_XP = 2;
+const CHEER_XP = 3;
+
 const FeedScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+
+const awardXpToPostOwner = async (ownerUserId: string, amount: number) => {
+  if (!amount || amount <= 0) return;
+
+  const { data: prof, error: fetchErr } = await supabase
+    .from("profiles")
+    .select("user_id, xp, display_name, avatar_url")
+    .eq("user_id", ownerUserId)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+
+  const currentXp = prof?.xp ?? 0;
+
+  const { error: updateErr } = await supabase
+    .from("profiles")
+    .upsert(
+      {
+        user_id: ownerUserId,
+        xp: currentXp + amount,
+        display_name: prof?.display_name ?? null,
+        avatar_url: prof?.avatar_url ?? null,
+      },
+      { onConflict: "user_id" }
+    );
+
+  if (updateErr) throw updateErr;
+};
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
@@ -121,52 +152,70 @@ const FeedScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const toggleReaction = async (post: FeedPost) => {
-    if (!user) return;
-    if (post.user_reacted) {
-      await supabase.from("reactions").delete().match({ post_id: post.id, user_id: user.id, medal: "cheer" });
-    } else {
-      await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
-    }
-  };
+ const toggleReaction = async (post: FeedPost) => {
+  if (!user) return;
 
-  const toggleLike = async (post: FeedPost) => {
-    if (!user) return;
-    const liked = post.user_liked;
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === post.id
-          ? { ...p, user_liked: !liked, like_count: p.like_count + (liked ? -1 : 1) }
-          : p
-      )
-    );
-    if (liked) {
-      const { error } = await supabase
-        .from("reactions")
-        .delete()
-        .match({ post_id: post.id, user_id: user.id, medal: "like" });
-      if (error) {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id ? { ...p, user_liked: true, like_count: p.like_count + 1 } : p
-          )
-        );
-        toast({ title: "Không thể bỏ thích", description: error.message, variant: "destructive" });
-      }
-    } else {
-      const { error } = await supabase
-        .from("reactions")
-        .insert({ post_id: post.id, user_id: user.id, medal: "like" });
-      if (error) {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id ? { ...p, user_liked: false, like_count: p.like_count - 1 } : p
-          )
-        );
-        toast({ title: "Không thả tim được", description: error.message, variant: "destructive" });
-      }
-    }
-  };
+  if (post.user_reacted) {
+    await supabase
+      .from("reactions")
+      .delete()
+      .match({ post_id: post.id, user_id: user.id, medal: "cheer" });
+    return;
+  }
+
+  const { error } = await supabase
+    .from("reactions")
+    .insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
+
+  if (error) return;
+
+  try {
+    await awardXpToPostOwner(post.user_id, CHEER_XP);
+
+    toast({
+      title: `+${CHEER_XP} XP`,
+      description: "Từ huy hiệu 🎖️",
+    });
+  } catch {}
+};
+
+const toggleLike = async (post: FeedPost) => {
+  if (!user) return;
+
+  const liked = post.user_liked;
+
+  // UI update trước
+  setPosts((prev) =>
+    prev.map((p) =>
+      p.id === post.id
+        ? { ...p, user_liked: !liked, like_count: p.like_count + (liked ? -1 : 1) }
+        : p
+    )
+  );
+
+  if (liked) {
+    await supabase
+      .from("reactions")
+      .delete()
+      .match({ post_id: post.id, user_id: user.id, medal: "like" });
+    return;
+  }
+
+  const { error } = await supabase
+    .from("reactions")
+    .insert({ post_id: post.id, user_id: user.id, medal: "like" });
+
+  if (error) return;
+
+  try {
+    await awardXpToPostOwner(post.user_id, LIKE_XP);
+
+    toast({
+      title: `+${LIKE_XP} XP`,
+      description: "Từ lượt thích ❤️",
+    });
+  } catch {}
+};
 
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
