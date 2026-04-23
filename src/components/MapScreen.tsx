@@ -34,8 +34,8 @@ interface AreaDef {
 
 const AREAS: AreaDef[] = [
   { key: "ho_tay", name: "Hồ Tây", center: [105.8240, 21.0650], radiusKm: 1.6, zoom: 14 },
-  { key: "hoan_kiem", name: "Hoàn Kiếm", center: [105.8521, 21.0285], radiusKm: 1.0, zoom: 15 },
-  { key: "ba_dinh", name: "Ba Đình", center: [105.8342, 21.0368], radiusKm: 1.2, zoom: 14.5 },
+  { key: "hoan_kiem", name: "Hoàn Kiếm", center: [105.8521, 21.0250], radiusKm: 1.0, zoom: 15 },
+  { key: "ba_dinh", name: "Ba Đình", center: [105.8370, 21.0370], radiusKm: 1.2, zoom: 14.5 },
   { key: "bat_trang", name: "Bát Tràng", center: [105.9123, 20.9757], radiusKm: 1.0, zoom: 15 },
 ];
 
