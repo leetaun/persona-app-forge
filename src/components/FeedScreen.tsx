@@ -40,42 +40,11 @@ interface FeedPost {
   user_liked: boolean;
 }
 
-const LIKE_XP = 2;
-const CHEER_XP = 3;
-
 const FeedScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
-
-const awardXpToPostOwner = async (ownerUserId: string, amount: number) => {
-  if (!amount || amount <= 0) return;
-
-  const { data: prof, error: fetchErr } = await supabase
-    .from("profiles")
-    .select("user_id, xp, display_name, avatar_url")
-    .eq("user_id", ownerUserId)
-    .maybeSingle();
-
-  if (fetchErr) throw fetchErr;
-
-  const currentXp = prof?.xp ?? 0;
-
-  const { error: updateErr } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        user_id: ownerUserId,
-        xp: currentXp + amount,
-        display_name: prof?.display_name ?? null,
-        avatar_url: prof?.avatar_url ?? null,
-      },
-      { onConflict: "user_id" }
-    );
-
-  if (updateErr) throw updateErr;
-};
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
@@ -152,70 +121,95 @@ const awardXpToPostOwner = async (ownerUserId: string, amount: number) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
- const toggleReaction = async (post: FeedPost) => {
-  if (!user) return;
+  const toggleReaction = async (post: FeedPost) => {
+    if (!user) return;
 
-  if (post.user_reacted) {
-    await supabase
-      .from("reactions")
-      .delete()
-      .match({ post_id: post.id, user_id: user.id, medal: "cheer" });
-    return;
-  }
+    const wasReacted = post.user_reacted;
 
-  const { error } = await supabase
-    .from("reactions")
-    .insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? {
+              ...p,
+              user_reacted: !wasReacted,
+              reaction_count: Math.max(0, p.reaction_count + (wasReacted ? -1 : 1)),
+            }
+          : p
+      )
+    );
 
-  if (error) return;
+    const { error } = wasReacted
+      ? await supabase
+          .from("reactions")
+          .delete()
+          .match({ post_id: post.id, user_id: user.id, medal: "cheer" })
+      : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
 
-  try {
-    await awardXpToPostOwner(post.user_id, CHEER_XP);
+    if (error) {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? {
+                ...p,
+                user_reacted: wasReacted,
+                reaction_count: Math.max(0, p.reaction_count + (wasReacted ? 1 : -1)),
+              }
+            : p
+        )
+      );
 
-    toast({
-      title: `+${CHEER_XP} XP`,
-      description: "Từ huy hiệu 🎖️",
-    });
-  } catch {}
-};
+      toast({
+        title: "Không cập nhật được huy chương",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
-const toggleLike = async (post: FeedPost) => {
-  if (!user) return;
+  const toggleLike = async (post: FeedPost) => {
+    if (!user) return;
 
-  const liked = post.user_liked;
+    const wasLiked = post.user_liked;
 
-  // UI update trước
-  setPosts((prev) =>
-    prev.map((p) =>
-      p.id === post.id
-        ? { ...p, user_liked: !liked, like_count: p.like_count + (liked ? -1 : 1) }
-        : p
-    )
-  );
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? {
+              ...p,
+              user_liked: !wasLiked,
+              like_count: Math.max(0, p.like_count + (wasLiked ? -1 : 1)),
+            }
+          : p
+      )
+    );
 
-  if (liked) {
-    await supabase
-      .from("reactions")
-      .delete()
-      .match({ post_id: post.id, user_id: user.id, medal: "like" });
-    return;
-  }
+    const { error } = wasLiked
+      ? await supabase
+          .from("reactions")
+          .delete()
+          .match({ post_id: post.id, user_id: user.id, medal: "like" })
+      : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "like" });
 
-  const { error } = await supabase
-    .from("reactions")
-    .insert({ post_id: post.id, user_id: user.id, medal: "like" });
+    if (error) {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? {
+                ...p,
+                user_liked: wasLiked,
+                like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)),
+              }
+            : p
+        )
+      );
 
-  if (error) return;
-
-  try {
-    await awardXpToPostOwner(post.user_id, LIKE_XP);
-
-    toast({
-      title: `+${LIKE_XP} XP`,
-      description: "Từ lượt thích ❤️",
-    });
-  } catch {}
-};
+      toast({
+        title: "Không cập nhật được lượt tim",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
