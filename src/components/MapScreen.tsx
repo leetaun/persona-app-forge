@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Search, MapPin, Lock, CheckCircle2, Eye, Compass } from "lucide-react";
+import { Search, MapPin, Eye, Compass } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
@@ -273,10 +273,6 @@ const MapScreen = () => {
     };
   }, [mapReady]);
 
-  const flyToArea = (a: AreaDef) => {
-    mapRef.current?.flyTo({ center: a.center, zoom: a.zoom, speed: 1.2, curve: 1.6, essential: true });
-  };
-
   const saveToken = () => {
     const t = tokenInput.trim();
     if (!t.startsWith("pk.")) return;
@@ -351,31 +347,6 @@ const MapScreen = () => {
             <span className={`text-xs font-semibold ${exploreMode ? "text-primary" : "text-muted-foreground"}`}>
               Khám phá
             </span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Area selector */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="absolute bottom-24 left-4 right-4 z-[400]"
-      >
-        <div className="glass-surface rounded-2xl p-3 shadow-lg">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2 px-1">
-            Khu vực đã mở khoá
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {AREAS.map((a) => (
-              <button
-                key={a.key}
-                onClick={() => flyToArea(a)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/60 hover:bg-primary hover:text-primary-foreground transition-colors text-left"
-              >
-                <MapPin className="w-4 h-4 shrink-0" />
-                <span className="text-xs font-medium truncate">{a.name}</span>
-              </button>
-            ))}
           </div>
         </div>
       </motion.div>
