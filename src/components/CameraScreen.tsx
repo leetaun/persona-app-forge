@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
+import { getCheckpointXp } from "@/lib/xp";
 
 interface Checkpoint {
   id: string;
@@ -25,16 +26,6 @@ const SMART_TAGS: Record<string, string[]> = {
 };
 
 type Step = "camera" | "preview" | "form";
-
-// Dynamic XP per area group (source of truth, mirrors DB checkpoints.xp_reward)
-const XP_BY_AREA: Record<string, number> = {
-  "Văn hóa - Tâm linh": 150,
-  "Nghệ thuật": 120,
-  "Nghỉ ngơi": 80,
-  "Ẩm thực": 50,
-};
-const getXpForCheckpoint = (c: Checkpoint | null) =>
-  (c?.area && XP_BY_AREA[c.area]) ?? c?.xp_reward ?? 0;
 
 const CameraScreen = () => {
   const { user } = useAuth();
@@ -158,7 +149,7 @@ const submitCheckin = async () => {
     const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
     const photo_url = pub.publicUrl;
 
-    const earnedXp = getXpForCheckpoint(selected);
+    const earnedXp = getCheckpointXp(selected);
 
     const { data: checkIn, error: ciErr } = await supabase
       .from("check_ins")
@@ -380,7 +371,7 @@ const submitCheckin = async () => {
               <optgroup key={area} label={area}>
                 {list.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} (+{c.xp_reward} XP)
+                    {c.name} (+{getCheckpointXp(c)} XP)
                   </option>
                 ))}
               </optgroup>
@@ -391,7 +382,7 @@ const submitCheckin = async () => {
               <MapPin className="w-3.5 h-3.5 text-primary" />
               <span>{selected.area}</span>
               <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-                +{selected.xp_reward} XP
+                +{getCheckpointXp(selected)} XP
               </span>
             </div>
           )}
@@ -474,7 +465,7 @@ const submitCheckin = async () => {
           ) : (
             <>
               <Camera className="w-4 h-4" />
-              Đăng bài (+{selected ? getXpForCheckpoint(selected) : 0} XP)
+               Đăng bài (+{selected ? getCheckpointXp(selected) : 0} XP)
             </>
           )}
         </button>
