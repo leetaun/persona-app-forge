@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+// Thêm qr_code vào Interface
 interface Checkpoint {
   id: string;
   name: string;
@@ -18,6 +19,7 @@ interface Checkpoint {
   lng: number;
   xp_reward: number;
   is_hot: boolean;
+  qr_code?: string;
 }
 
 type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang";
@@ -43,7 +45,21 @@ const ENV_MAPBOX_TOKEN =
   (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ||
   "pk.eyJ1IjoibGVldGF1biIsImEiOiJjbW80OG91dWkwbTM1M3dwa291amk1N2N2In0.16XX7az081Vjv-xmyandlQ";
 
-// Build a circle polygon (ring) around a center point in lng/lat using meters approximation
+// ===== DANH SÁCH 10 CỘT MỐC CỦA BẠN (GẮN CỨNG VÀO CODE) =====
+const MY_PILLARS: Checkpoint[] = [
+  { id: "COT_CO_HA_NOI", name: "Cột cờ Hà Nội", lat: 21.0335, lng: 105.8430, xp_reward: 50, is_hot: true, description: "Biểu tượng lịch sử", area: "Ba Đình", qr_code: "COT_CO_HA_NOI" },
+  { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", lat: 21.0360, lng: 105.8347, xp_reward: 50, is_hot: false, description: "Con đường lịch sử", area: "Ba Đình", qr_code: "DUONG_DOC_LAP" },
+  { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", lat: 21.0400, lng: 105.8400, xp_reward: 50, is_hot: true, description: "Con đường rợp bóng cây", area: "Ba Đình", qr_code: "DUONG_PHAN_DINH_PHUNG" },
+  { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 30, is_hot: false, description: "Cafe check-in đẹp", area: "Ba Đình", qr_code: "KAMON_CAFE" },
+  { id: "49_THANHNIEN_21045507_105836586", name: "49 Thanh Niên", lat: 21.045507, lng: 105.836586, xp_reward: 40, is_hot: true, description: "View Hồ Tây", area: "Tây Hồ", qr_code: "49_THANHNIEN_21045507_105836586" },
+  { id: "QUANGBA_21065935_105819695", name: "Quảng Bá", lat: 21.065935, lng: 105.819695, xp_reward: 40, is_hot: false, description: "Khu vực Quảng Bá", area: "Tây Hồ", qr_code: "QUANGBA_21065935_105819695" },
+  { id: "69_TONGOCVAN_21066414_105819176", name: "69 Tô Ngọc Vân", lat: 21.066414, lng: 105.819176, xp_reward: 40, is_hot: false, description: "Tô Ngọc Vân", area: "Tây Hồ", qr_code: "69_TONGOCVAN_21066414_105819176" },
+  { id: "3_QUANGBA_21070314_105822777", name: "Ngõ 3 Quảng Bá", lat: 21.070314, lng: 105.822777, xp_reward: 40, is_hot: false, description: "Ngõ nhỏ view hồ", area: "Tây Hồ", qr_code: "3_QUANGBA_21070314_105822777" },
+  { id: "NGA_3_NHATCHIEU_21074211_105819733", name: "Ngã 3 Nhật Chiêu", lat: 21.074211, lng: 105.819733, xp_reward: 50, is_hot: true, description: "Điểm giao cắt 2 con rồng", area: "Tây Hồ", qr_code: "NGA_3_NHATCHIEU_21074211_105819733" },
+  { id: "VEHO_21069166_105812065", name: "Vệ Hồ", lat: 21.069166, lng: 105.812065, xp_reward: 40, is_hot: false, description: "Đường Vệ Hồ", area: "Tây Hồ", qr_code: "VEHO_21069166_105812065" }
+];
+
+
 function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
   const [lng, lat] = center;
   const coords: [number, number][] = [];
@@ -67,7 +83,6 @@ function circleRing(center: [number, number], radiusKm: number, points = 64): [n
   return coords;
 }
 
-// Outer ring covering all of Hanoi (and beyond) — used as the fog mask outer boundary
 const HANOI_OUTER_RING: [number, number][] = [
   [105.55, 20.85],
   [106.15, 20.85],
@@ -77,7 +92,6 @@ const HANOI_OUTER_RING: [number, number][] = [
 ];
 
 function buildFogGeoJson(): GeoJSON.Feature<GeoJSON.Polygon> {
-  // Polygon with holes: first ring = outer, subsequent rings = holes (inverted polygon)
   const holes = AREAS.map((a) => circleRing(a.center, a.radiusKm));
   return {
     type: "Feature",
@@ -89,15 +103,6 @@ function buildFogGeoJson(): GeoJSON.Feature<GeoJSON.Polygon> {
   };
 }
 
-function isInsideUnlockedArea(lng: number, lat: number): boolean {
-  // simple radius-based check (km)
-  return AREAS.some((a) => {
-    const dx = (lng - a.center[0]) * 111 * Math.cos((lat * Math.PI) / 180);
-    const dy = (lat - a.center[1]) * 111;
-    return Math.sqrt(dx * dx + dy * dy) <= a.radiusKm;
-  });
-}
-
 const MapScreen = () => {
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,16 +110,17 @@ const MapScreen = () => {
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [token, setToken] = useState<string>(() => localStorage.getItem(TOKEN_KEY) || ENV_MAPBOX_TOKEN);
   const [tokenInput, setTokenInput] = useState("");
-  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  
+  // Dùng luôn MY_PILLARS làm danh sách mặc định
+  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>(MY_PILLARS);
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [exploreMode, setExploreMode] = useState(true); // true = Khám phá, false = Tham quan
+  const [exploreMode, setExploreMode] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasCenteredRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
 
-  // Init map when token available
   useEffect(() => {
     if (!token || !containerRef.current || mapRef.current) return;
     mapboxgl.accessToken = token;
@@ -128,7 +134,6 @@ const MapScreen = () => {
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
     map.on("load", () => {
-      // Fog source + layer (inverted polygon)
       map.addSource("fog", {
         type: "geojson",
         data: buildFogGeoJson(),
@@ -142,7 +147,6 @@ const MapScreen = () => {
           "fill-opacity": 0.8,
         },
       });
-      // Optional: outline glow on holes
       map.addLayer({
         id: "fog-outline",
         type: "line",
@@ -164,33 +168,29 @@ const MapScreen = () => {
     };
   }, [token]);
 
-  // Load data
+  // Load data: Chỉ lấy lịch sử check_in để biết cái nào đã quét QR
   useEffect(() => {
     const load = async () => {
-      const [{ data: cps }, { data: cis }] = await Promise.all([
-        supabase.from("checkpoints").select("*").order("created_at"),
-        user
-          ? supabase.from("check_ins").select("checkpoint_id").eq("user_id", user.id)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-      setCheckpoints((cps as Checkpoint[]) || []);
-      setUnlockedIds(new Set(((cis as any[]) || []).map((c: any) => c.checkpoint_id)));
+      if (user) {
+        const { data: cis } = await supabase.from("check_ins").select("checkpoint_id").eq("user_id", user.id);
+        setUnlockedIds(new Set(((cis as any[]) || []).map((c: any) => c.checkpoint_id)));
+      }
       setLoading(false);
     };
     load();
   }, [user]);
 
-  // Render markers based on mode + unlocked areas
+  // Vẽ các mốc cột lên bản đồ
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
-    // clear existing
+    
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    if (!exploreMode) return; // Tham quan = no markers
+    if (!exploreMode) return; 
 
     checkpoints.forEach((cp) => {
-      if (!isInsideUnlockedArea(cp.lng, cp.lat)) return;
+      // ĐÃ XÓA LOGIC GIẤU CỘT TRONG SƯƠNG MÙ - ĐẢM BẢO 10 CỘT LÚC NÀO CŨNG HIỆN
       const completed = unlockedIds.has(cp.id);
 
       const el = document.createElement("div");
@@ -211,7 +211,8 @@ const MapScreen = () => {
           ${cp.area ? `<p style="color:#777;margin:0 0 4px;">📍 ${cp.area}</p>` : ""}
           ${cp.description ? `<p style="color:#555;margin:0 0 6px;">${cp.description}</p>` : ""}
           <p style="color:hsl(152 55% 42%);font-weight:600;margin:0;">+${cp.xp_reward} XP</p>
-          ${completed ? `<p style="color:#059669;font-weight:500;margin:4px 0 0;">✓ Đã hoàn thành</p>` : `<p style="color:#777;font-style:italic;margin:4px 0 0;">🔒 Chưa mở khoá</p>`}
+          ${cp.qr_code ? `<p style="color:#2563eb;font-weight:600;margin:4px 0 0;font-family:monospace">Mã QR: ${cp.qr_code}</p>` : ""}
+          ${completed ? `<p style="color:#059669;font-weight:500;margin:4px 0 0;">✓ Đã hoàn thành</p>` : `<p style="color:#777;font-style:italic;margin:4px 0 0;">🔒 Cần Quét QR để mở</p>`}
         </div>`,
       );
 
@@ -223,7 +224,7 @@ const MapScreen = () => {
     });
   }, [checkpoints, unlockedIds, exploreMode, mapReady]);
 
-  // Geolocation: blue dot with pulse, center only once on first fix
+  // Geolocation
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
     if (!("geolocation" in navigator)) return;
@@ -280,7 +281,6 @@ const MapScreen = () => {
     setToken(t);
   };
 
-  // Token gate
   if (!token) {
     return (
       <div className="h-full w-full flex items-center justify-center p-6 bg-background">
@@ -290,16 +290,7 @@ const MapScreen = () => {
             <h2 className="font-bold text-lg">Kết nối Mapbox</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Dán Mapbox public token (bắt đầu bằng <code>pk.</code>) lấy từ{" "}
-            <a
-              href="https://account.mapbox.com/access-tokens/"
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary underline"
-            >
-              account.mapbox.com
-            </a>
-            . Token sẽ được lưu trên thiết bị này.
+            Dán Mapbox public token (bắt đầu bằng <code>pk.</code>).
           </p>
           <Input
             placeholder="pk.eyJ1Ijoi..."
