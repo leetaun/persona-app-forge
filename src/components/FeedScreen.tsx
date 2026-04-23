@@ -121,7 +121,7 @@ const FeedScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const toggleReaction = async (post: FeedPost) => {
+const toggleReaction = async (post: FeedPost) => {
     if (!user) return;
 
     const wasReacted = post.user_reacted;
@@ -162,6 +162,12 @@ const FeedScreen = () => {
         title: "Không cập nhật được huy chương",
         description: error.message,
         variant: "destructive",
+      });
+    } else if (!wasReacted) {
+      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi tặng huy chương thành công
+      toast({
+        title: "🎉 Tặng huy chương thành công!",
+        description: "Chúc mừng bạn được cộng +3 XP",
       });
     }
   };
@@ -208,9 +214,15 @@ const FeedScreen = () => {
         description: error.message,
         variant: "destructive",
       });
+    } else if (!wasLiked) {
+      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi thả tim thành công
+      toast({
+        title: "❤️ Đã thả tim!",
+        description: "Chúc mừng bạn được cộng +2 XP",
+      });
     }
   };
-
+  
   return (
     <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
