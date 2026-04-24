@@ -295,7 +295,7 @@ const handleQRSuccess = async (qrData: string) => {
       await refreshProfile();
       toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in thành công.` });
       
-      setTimeout(() => { window.location.href = "/"; }, 2000); 
+      setTimeout(() => { navigate("/"); }, 1500); 
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
     } finally { setSubmitting(false); }
