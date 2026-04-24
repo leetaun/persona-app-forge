@@ -1,5 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
+
+
+import { useEffect, useState, useCallback } from "react";
+
 import { useAuth } from "@/contexts/AuthContext";
 
 export interface Profile {
@@ -17,44 +21,51 @@ export const useProfile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  // Hàm này giờ sẽ đi tìm trong "sổ tay" offline thay vì hỏi Supabase
+  const refresh = useCallback(() => {
     if (!user) {
       setProfile(null);
       setLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    setProfile(data as Profile | null);
+
+    // Lấy điểm XP từ localStorage (Mặc định là 0 nếu chưa có)
+    const offlineXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
+
+    // Tính level cơ bản (ví dụ cứ 100 XP lên 1 cấp)
+    const calculatedLevel = Math.floor(offlineXp / 100) + 1;
+
+    // Tạo một Profile ảo để nuôi giao diện
+    const dummyProfile: Profile = {
+      id: user.id,
+      user_id: user.id,
+      display_name: "Nhà Thám Hiểm", // Tên mặc định nếu chạy offline
+      avatar_url: null,
+      bio: "Đang khám phá Jourstic",
+      xp: offlineXp,
+      level: calculatedLevel,
+    };
+
+    setProfile(dummyProfile);
     setLoading(false);
   }, [user]);
 
+  // Chạy refresh lần đầu khi load app
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  // Realtime: react to profile changes (xp/level updates from anywhere)
-  useEffect(() => {
-    if (!user) return;
-    const ch = supabase
-      .channel(`profile-${user.id}-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` },
-        (payload) => setProfile(payload.new as Profile)
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [user?.id]);
-
-  // Optimistic local XP update (instant UI bar growth)
+  // Hàm giúp UI cập nhật ngay lập tức khi được cộng điểm
   const addXpOptimistic = useCallback((delta: number) => {
-    setProfile((p) => (p ? { ...p, xp: p.xp + delta } : p));
+    setProfile((p) => {
+      if (!p) return p;
+      const newXp = p.xp + delta;
+      
+      // Nhớ lưu luôn vào sổ tay offline để đồng bộ
+      localStorage.setItem('jourstic_xp', newXp.toString());
+      
+      return { ...p, xp: newXp };
+    });
   }, []);
 
   return { profile, loading, refresh, addXpOptimistic };
