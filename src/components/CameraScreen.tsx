@@ -217,29 +217,38 @@ const CameraScreen = () => {
 
   const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
 
-  const submitCheckin = async () => {
-    if (!user || !photoBlob || !selected) return;
+const submitCheckin = async () => {
+    // Chạy offline nên bỏ qua check "user" và "photoBlob" phức tạp
+    if (!selected) return;
     setSubmitting(true);
+    
     try {
-      const path = `${user.id}/${Date.now()}.jpg`;
-      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
+      // 1. Lấy số XP tương ứng với địa điểm đã chọn (Ví dụ: Tâm linh +100, Ẩm thực +20)
       const earnedXp = getCheckpointXp(selected);
-      const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
-          user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
-        }).select().single();
-      if (ciErr) throw ciErr;
-      const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
-      await supabase.from("posts").insert({ user_id: user.id, check_in_id: checkIn.id, photo_url: pub.publicUrl, caption: fullCaption || null, location_name: selected.name });
-      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
-      await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
-      await refreshProfile();
-      toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in thành công.` });
-      window.location.href = "/"; 
+
+      // 2. Mở "sổ tay" Offline lấy điểm hiện tại
+      const currentXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
+      
+      // 3. Cộng điểm và lưu ngược lại vào sổ
+      const newXp = currentXp + earnedXp;
+      localStorage.setItem('jourstic_xp', newXp.toString());
+
+      // (Tùy chọn: Nếu muốn app lưu offline cả ảnh vào Feed thì sẽ code thêm, 
+      // nhưng ở bản Demo hiện tại chỉ cần báo thành công và búng về Map là đẹp nhất)
+
+      toast({ 
+        title: `+${earnedXp} XP! 🎉`, 
+        description: `Check-in tại ${selected.name} thành công.` 
+      });
+      
+      // Búng về bản đồ
+      setTimeout(() => { window.location.href = "/"; }, 1500); 
+      
     } catch (err: any) {
-      toast({ title: "Lỗi", description: err.message, variant: "destructive" });
-    } finally { setSubmitting(false); }
+      toast({ title: "Lỗi hệ thống", description: "Lỗi khi lưu điểm offline.", variant: "destructive" });
+    } finally { 
+      setSubmitting(false); 
+    }
   };
 
   const grouped = checkpoints.reduce<Record<string, Checkpoint[]>>((acc, c) => { const k = c.area || "Khác"; (acc[k] ||= []).push(c); return acc; }, {});
