@@ -48,66 +48,24 @@ const FeedScreen = () => {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const deletePost = async (post: FeedPost) => {
-    if (!user || post.user_id !== user.id) return;
-    const { error } = await supabase.from("posts").delete().eq("id", post.id);
-    if (error) {
-      toast({ title: "Không xoá được bài", description: error.message, variant: "destructive" });
-      return;
-    }
-    setPosts((prev) => prev.filter((p) => p.id !== post.id));
-    toast({ title: "Đã gỡ bài viết" });
+  // Dạy Feed đọc từ bộ nhớ tạm thay vì Supabase
+  const loadPosts = () => {
+    const offlinePosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
+    setPosts(offlinePosts);
+    setLoading(false);
   };
 
-  const loadPosts = async () => {
-    const { data: rawPosts } = await supabase
-      .from("posts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
+  useEffect(() => {
+    loadPosts();
+  }, []);
 
-    if (!rawPosts) {
-      setLoading(false);
-      return;
-    }
-
-    const userIds = [...new Set(rawPosts.map((p) => p.user_id))];
-    const postIds = rawPosts.map((p) => p.id);
-
-    const [{ data: profiles }, { data: reactions }] = await Promise.all([
-      supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", userIds),
-      supabase.from("reactions").select("post_id,user_id,medal").in("post_id", postIds),
-    ]);
-
-    const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
-    const reactionMap = new Map<string, { count: number; mine: boolean }>();
-    const likeMap = new Map<string, { count: number; mine: boolean }>();
-    (reactions || []).forEach((r) => {
-      const target = r.medal === "like" ? likeMap : reactionMap;
-      const cur = target.get(r.post_id) || { count: 0, mine: false };
-      cur.count++;
-      if (r.user_id === user?.id) cur.mine = true;
-      target.set(r.post_id, cur);
-    });
-
-    setPosts(
-      rawPosts.map((p) => {
-        const prof = profileMap.get(p.user_id);
-        const rx = reactionMap.get(p.id) || { count: 0, mine: false };
-        const lk = likeMap.get(p.id) || { count: 0, mine: false };
-        const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
-        return {
-          ...p,
-          display_name: prof?.display_name ?? fallbackName,
-          avatar_url: prof?.avatar_url ?? null,
-          reaction_count: rx.count,
-          user_reacted: rx.mine,
-          like_count: lk.count,
-          user_liked: lk.mine,
-        };
-      })
-    );
-    setLoading(false);
+  // Sửa luôn hàm Xóa bài viết để nó không gọi mạng nữa
+  const deletePost = (post: FeedPost) => {
+    const existingPosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
+    const updatedPosts = existingPosts.filter((p: any) => p.id !== post.id);
+    localStorage.setItem('jourstic_posts', JSON.stringify(updatedPosts));
+    setPosts(updatedPosts);
+    toast({ title: "Đã gỡ bài viết" });
   };
 
   useEffect(() => {
