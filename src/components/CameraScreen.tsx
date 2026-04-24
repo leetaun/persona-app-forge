@@ -110,97 +110,106 @@ const CameraScreen = () => {
   }, [step]);
 
 const handleQRSuccess = async (qrData: string) => {
-    if (!user || isScanning) return;
-    setIsScanning(true); 
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    if (!user || isScanning) return;
+    setIsScanning(true); 
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
-    try {
-      const cleanData = qrData.trim();
-      
-      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
-      const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
-      
-      if (!pillar) {
-        toast({ 
-          title: "Mã QR lạ", 
-          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
-          variant: "destructive" 
-        });
-        setTimeout(() => setIsScanning(false), 3000);
-        return;
-      }
+    try {
+      const cleanData = qrData.trim();
+      
+      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
+      const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
+      
+      if (!pillar) {
+        toast({ 
+          title: "Mã QR lạ", 
+          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
+          variant: "destructive" 
+        });
+        setTimeout(() => setIsScanning(false), 3000);
+        return;
+      }
 
-      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
-      const cp = checkpoints.find(c => c.name === pillar.name);
+      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
+      const cp = checkpoints.find(c => c.name === pillar.name);
 
-      if (!cp) {
-        toast({ 
-          title: "Lỗi đồng bộ", 
-          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
-          variant: "destructive" 
-        });
-        setTimeout(() => setIsScanning(false), 3000);
-        return;
-      }
+      if (!cp) {
+        toast({ 
+          title: "Lỗi đồng bộ", 
+          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
+          variant: "destructive" 
+        });
+        setTimeout(() => setIsScanning(false), 3000);
+        return;
+      }
 
-      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
-      // Kiểm tra xem đã quét trạm này chưa
-      const { data: existing, error: checkError } = await supabase
-        .from("check_ins")
-        .select("id")
-        .match({ user_id: user.id, checkpoint_id: cp.id })
-        .maybeSingle();
+      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
+      // Kiểm tra xem đã quét trạm này chưa
+      const { data: existing, error: checkError } = await supabase
+        .from("check_ins")
+        .select("id")
+        .match({ user_id: user.id, checkpoint_id: cp.id })
+        .maybeSingle();
 
-      if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
+      if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
 
-      if (existing) {
-        toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
-        setTimeout(() => { window.location.href = "/"; }, 1500); 
-        return;
-      }
+      if (existing) {
+        toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
+        setTimeout(() => { window.location.href = "/"; }, 1500); 
+        return;
+      }
 
-      // Ghi nhận lượt Check-in mới
-      const { error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, 
-        checkpoint_id: cp.id, // Dùng ID thật!
-        photo_url: "QR_UNLOCKED", 
-        lat: coords?.lat ?? null, 
-        lng: coords?.lng ?? null, 
-        xp_earned: 10,
-      });
-      if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
+      // Ghi nhận lượt Check-in mới
+      const { error: ciErr } = await supabase.from("check_ins").insert({
+        user_id: user.id, 
+        checkpoint_id: cp.id, // Dùng ID thật!
+        photo_url: "QR_UNLOCKED", 
+        lat: coords?.lat ?? null, 
+        lng: coords?.lng ?? null, 
+        xp_earned: 10,
+      });
+      if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
 
-      // Cộng 10 XP vào Profile
-      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
-      const currentXp = prof?.xp || 0;
-      
-      const { error: xpErr } = await supabase
-        .from("profiles")
-        .update({ xp: currentXp + 10 })
-        .eq("user_id", user.id);
-        
-      if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
+      // 🔥 ĐOẠN CODE MỚI ĐƯỢC THÊM VÀO ĐỂ BẢN ĐỒ HIỂU LÀ ĐÃ UNLOCKED 🔥
+      const { error: unlockErr } = await supabase
+        .from("checkpoints")
+        .update({ unlocked: true })
+        .eq("id", cp.id);
+        
+      if (unlockErr) console.error("Lỗi báo bản đồ mở khóa:", unlockErr.message);
+      // ==============================================================
 
-      await refreshProfile();
+      // Cộng 10 XP vào Profile
+      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
+      const currentXp = prof?.xp || 0;
+      
+      const { error: xpErr } = await supabase
+        .from("profiles")
+        .update({ xp: currentXp + 10 })
+        .eq("user_id", user.id);
+        
+      if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
 
-      toast({ 
-        title: `🎉 Tuyệt vời! +10 XP`, 
-        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
-      });
-      
-      // Chuyển trang mượt mà
-      setTimeout(() => { window.location.href = "/"; }, 2000);
+      await refreshProfile();
 
-    } catch (err: any) {
-      console.error("Technical Error:", err);
-      toast({ 
-        title: "Lỗi hệ thống", 
-        description: err.message || "Không thể xử lý dữ liệu lúc này.", 
-        variant: "destructive" 
-      });
-      setIsScanning(false);
-    }
-  };
+      toast({ 
+        title: `🎉 Tuyệt vời! +10 XP`, 
+        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
+      });
+      
+      // Chuyển trang mượt mà
+      setTimeout(() => { window.location.href = "/"; }, 2000);
+
+    } catch (err: any) {
+      console.error("Technical Error:", err);
+      toast({ 
+        title: "Lỗi hệ thống", 
+        description: err.message || "Không thể xử lý dữ liệu lúc này.", 
+        variant: "destructive" 
+      });
+      setIsScanning(false);
+    }
+  };
 
   const scanQRCode = () => {
     if (mode !== "qr" || !videoRef.current || !cameraReady || isScanning) return;
