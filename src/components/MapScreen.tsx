@@ -116,6 +116,7 @@ const MapScreen = () => {
     return () => { map.remove(); mapRef.current = null; setMapReady(false); };
   }, [token]);
 
+  /*
   useEffect(() => {
     const load = async () => {
       if (user) {
@@ -125,6 +126,26 @@ const MapScreen = () => {
       setLoading(false);
     };
     load();
+  }, [user]);
+*/
+
+// ĐOẠN CODE MỚI DÀNH CHO BẢN ĐỒ OFFLINE
+  useEffect(() => {
+    const loadOfflineData = () => {
+      // Đọc "sổ tay" localStorage xem đã quét được những trạm nào
+      const unlockedData = localStorage.getItem('jourstic_unlocked');
+      const unlockedList = unlockedData ? JSON.parse(unlockedData) : [];
+      
+      // Cập nhật lên bản đồ
+      setUnlockedIds(new Set(unlockedList));
+      setLoading(false);
+    };
+
+    loadOfflineData();
+
+    // Giúp bản đồ tự động reload lại nếu bạn vừa quét mã ở trang Camera xong
+    window.addEventListener('storage', loadOfflineData);
+    return () => window.removeEventListener('storage', loadOfflineData);
   }, [user]);
 
   useEffect(() => {
