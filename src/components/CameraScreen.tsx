@@ -65,15 +65,12 @@ const CameraScreen = () => {
 
   useEffect(() => {
     supabase.from("checkpoints").select("*").order("area").order("name")
-      .then(({ data }) => setCheckpoints((data as Checkpoint[]) || []));
-    
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => {}, { enableHighAccuracy: true }
-      );
-    }
-  }, []);
+      .then(({ data }) => {
+        setCheckpoints((data as Checkpoint[]) || []);
+        // THÊM DÒNG NÀY ĐỂ IN RA DANH SÁCH TÊN TỪ DATABASE
+        console.log("Danh sách trạm trên Database gồm có:", data?.map(c => c.name));
+      });
+    // ...
 
   const startCamera = async () => {
     try {
