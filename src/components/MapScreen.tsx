@@ -141,13 +141,13 @@ const MapScreen = () => {
         ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
         : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
-      // Giao diện Popup: Thơ thì nền nhạt in nghiêng, còn mô tả thì bình thường
+      // Giao diện Popup: Đã fix lại phông chữ hiện đại, bo góc và màu sắc đẹp hơn
       const popup = new mapboxgl.Popup({ offset: 22, closeButton: false }).setHTML(
-        `<div style="font-size:12px;min-width:180px;max-width:220px;">
-          <p style="font-weight:800;font-size:15px;margin:0 0 4px;">${cp.name}</p>
-          ${cp.poem ? `<div style="background:#f0fdf4; border-left:3px solid #16a34a; padding:8px; margin:8px 0; border-radius:4px;"><p style="color:#166534;margin:0;white-space:pre-line;font-style:italic;line-height:1.5;">${cp.poem}</p></div>` : ""}
-          ${cp.description ? `<p style="color:#555;margin:4px 0;">${cp.description}</p>` : ""}
-          ${completed ? `<p style="color:#059669;font-weight:bold;margin:8px 0 0;">✓ Đã khám phá</p>` : `<p style="color:#64748b;font-weight:bold;margin:8px 0 0;">🔒 Quét QR để nhận +${cp.xp_reward} XP</p>`}
+        `<div style="font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; font-size:13px; min-width:180px; max-width:220px; color:#334155;">
+          <p style="font-weight:800; font-size:16px; margin:0 0 6px; color:#0f172a;">${cp.name}</p>
+          ${cp.poem ? `<div style="background:#f0fdf4; border-left:3px solid #16a34a; padding:8px; margin:8px 0; border-radius:6px;"><p style="color:#166534; margin:0; white-space:pre-line; font-style:italic; line-height:1.5;">${cp.poem}</p></div>` : ""}
+          ${cp.description ? `<p style="color:#475569; margin:4px 0; line-height:1.4;">${cp.description}</p>` : ""}
+          ${completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
         </div>`
       );
 
