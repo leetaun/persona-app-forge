@@ -21,7 +21,6 @@ export const useProfile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Hàm này giờ sẽ đi tìm trong "sổ tay" offline thay vì hỏi Supabase
   const refresh = useCallback(() => {
     if (!user) {
       setProfile(null);
@@ -29,22 +28,26 @@ export const useProfile = () => {
       return;
     }
 
-    // Lấy điểm XP từ localStorage (Mặc định là 0 nếu chưa có)
     const offlineXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
-
-    // Tính level cơ bản (ví dụ cứ 100 XP lên 1 cấp)
     const calculatedLevel = Math.floor(offlineXp / 100) + 1;
 
-    // Tạo một Profile ảo để nuôi giao diện
+    // --- SỬA ĐOẠN NÀY ---
+    // Lấy tên từ metadata của Google hoặc cắt từ email ra
+    const realName = user.user_metadata?.full_name || 
+                     user.user_metadata?.display_name || 
+                     user.email?.split('@')[0] || 
+                     "Nhà Thám Hiểm";
+
     const dummyProfile: Profile = {
       id: user.id,
       user_id: user.id,
-      display_name: "Nhà Thám Hiểm", // Tên mặc định nếu chạy offline
-      avatar_url: null,
+      display_name: realName, // Dùng tên thật ở đây
+      avatar_url: user.user_metadata?.avatar_url || null, // Lấy luôn ảnh đại diện Google
       bio: "Đang khám phá Jourstic",
       xp: offlineXp,
       level: calculatedLevel,
     };
+    // --------------------
 
     setProfile(dummyProfile);
     setLoading(false);
