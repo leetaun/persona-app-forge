@@ -25,6 +25,20 @@ const SMART_TAGS: Record<string, string[]> = {
   "Nghỉ ngơi": ["Sạch sẽ", "Dịch vụ tốt", "Phục vụ chu đáo"],
 };
 
+// ĐÂY LÀ DANH SÁCH CHUẨN ĐỂ ĐỐI CHIẾU QUÉT QR
+const MY_PILLARS = [
+  { id: "49_THANHNIEN_21045507_105836586", name: "49 Thanh Niên", qr_code: "49_THANHNIEN_21045507_105836586" },
+  { id: "QUANGBA_21065935_105819695", name: "Quảng Bá", qr_code: "QUANGBA_21065935_105819695" },
+  { id: "69_TONGOCVAN_21066414_105819176", name: "69 Tô Ngọc Vân", qr_code: "69_TONGOCVAN_21066414_105819176" },
+  { id: "3_QUANGBA_21070314_105822777", name: "Ngõ 3 Quảng Bá", qr_code: "3_QUANGBA_21070314_105822777" },
+  { id: "NGA_3_NHATCHIEU_21074211_105819733", name: "Ngã 3 Nhật Chiêu", qr_code: "NGA_3_NHATCHIEU_21074211_105819733" },
+  { id: "VEHO_21069166_105812065", name: "Vệ Hồ", qr_code: "VEHO_21069166_105812065" },
+  { id: "COT_CO_HA_NOI", name: "Cột cờ Hà Nội", qr_code: "COT_CO_HA_NOI" },
+  { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", qr_code: "DUONG_DOC_LAP" },
+  { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", qr_code: "DUONG_PHAN_DINH_PHUNG" },
+  { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
+];
+
 type Step = "camera" | "preview" | "form";
 
 const CameraScreen = () => {
@@ -50,7 +64,6 @@ const CameraScreen = () => {
   const requestRef = useRef<number>();
 
   useEffect(() => {
-    // Lấy toàn bộ danh sách trạm từ Database để đối chiếu QR
     supabase.from("checkpoints").select("*").order("area").order("name")
       .then(({ data }) => setCheckpoints((data as Checkpoint[]) || []));
     
@@ -64,7 +77,6 @@ const CameraScreen = () => {
 
   const startCamera = async () => {
     try {
-      // Tăng độ phân giải để quét QR nhạy hơn trên điện thoại
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: "environment",
@@ -97,7 +109,6 @@ const CameraScreen = () => {
     return () => stopCamera();
   }, [step]);
 
-  // ===== LOGIC XỬ LÝ QUÉT QR THÀNH CÔNG (ĐÃ FIX LỖI KẾT NỐI) =====
   const handleQRSuccess = async (qrData: string) => {
     if (!user || isScanning) return;
     setIsScanning(true); 
@@ -105,20 +116,21 @@ const CameraScreen = () => {
 
     try {
       const cleanData = qrData.trim();
-      // Tìm trạm khớp với mã QR (so sánh với cột qr_code hoặc id trong database)
-      const cp = checkpoints.find(p => p.qr_code === cleanData || p.id === cleanData);
+      
+      // ĐÃ SỬA LẠI THÀNH MY_PILLARS thay vì checkpoints
+      const cp = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
       if (!cp) {
         toast({ 
           title: "Mã QR lạ", 
-          description: `Hệ thống không tìm thấy trạm khớp với mã: "${cleanData}"`, 
+          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
           variant: "destructive" 
         });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 1. Kiểm tra xem đã quét trạm này chưa
+      // Kiểm tra xem đã quét trạm này chưa
       const { data: existing, error: checkError } = await supabase
         .from("check_ins")
         .select("id")
@@ -133,7 +145,7 @@ const CameraScreen = () => {
         return;
       }
 
-      // 2. Ghi nhận lượt Check-in mới
+      // Ghi nhận lượt Check-in mới
       const { error: ciErr } = await supabase.from("check_ins").insert({
         user_id: user.id, 
         checkpoint_id: cp.id, 
@@ -144,7 +156,7 @@ const CameraScreen = () => {
       });
       if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
 
-      // 3. Cộng 10 XP vào Profile (Sử dụng upsert để an toàn hơn update)
+      // Cộng 10 XP vào Profile
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       const currentXp = prof?.xp || 0;
       
@@ -186,7 +198,6 @@ const CameraScreen = () => {
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        // Sử dụng attemptBoth để quét nhạy hơn kể cả mã mờ
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
         if (code && code.data) {
           handleQRSuccess(code.data);
@@ -299,6 +310,16 @@ const CameraScreen = () => {
             <p className="text-white/80 text-xs font-medium">Chụp ảnh để đăng Bảng tin</p>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (step === "preview") {
+    return (
+      <div className="h-full relative bg-black flex flex-col overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center">{photoPreview && <img src={photoPreview} alt="preview" className="w-full h-full object-contain" />}</div>
+        <div className="absolute top-12 left-4 right-4 z-10 flex justify-between"><button onClick={resetAll} className="w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><X className="w-5 h-5" /></button></div>
+        <div className="absolute bottom-28 left-4 right-4 z-10 flex gap-3"><button onClick={resetAll} className="flex-1 bg-card/90 backdrop-blur text-foreground rounded-2xl py-3.5 font-semibold">Chụp lại</button><button onClick={() => setStep("form")} className="flex-[2] bg-primary text-primary-foreground rounded-2xl py-3.5 font-semibold flex items-center justify-center gap-2 shadow-lg">Tiếp tục <Send className="w-4 h-4" /></button></div>
       </div>
     );
   }
