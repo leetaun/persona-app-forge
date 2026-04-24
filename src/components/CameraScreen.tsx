@@ -109,7 +109,7 @@ const CameraScreen = () => {
     return () => stopCamera();
   }, [step]);
 
-  const handleQRSuccess = async (qrData: string) => {
+const handleQRSuccess = async (qrData: string) => {
     if (!user || isScanning) return;
     setIsScanning(true); 
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -117,10 +117,10 @@ const CameraScreen = () => {
     try {
       const cleanData = qrData.trim();
       
-      // ĐÃ SỬA LẠI THÀNH MY_PILLARS thay vì checkpoints
-      const cp = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
+      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
+      const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
-      if (!cp) {
+      if (!pillar) {
         toast({ 
           title: "Mã QR lạ", 
           description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
@@ -130,6 +130,20 @@ const CameraScreen = () => {
         return;
       }
 
+      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
+      const cp = checkpoints.find(c => c.name === pillar.name);
+
+      if (!cp) {
+        toast({ 
+          title: "Lỗi đồng bộ", 
+          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
+          variant: "destructive" 
+        });
+        setTimeout(() => setIsScanning(false), 3000);
+        return;
+      }
+
+      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
       // Kiểm tra xem đã quét trạm này chưa
       const { data: existing, error: checkError } = await supabase
         .from("check_ins")
@@ -148,7 +162,7 @@ const CameraScreen = () => {
       // Ghi nhận lượt Check-in mới
       const { error: ciErr } = await supabase.from("check_ins").insert({
         user_id: user.id, 
-        checkpoint_id: cp.id, 
+        checkpoint_id: cp.id, // Dùng ID thật!
         photo_url: "QR_UNLOCKED", 
         lat: coords?.lat ?? null, 
         lng: coords?.lng ?? null, 
@@ -174,6 +188,7 @@ const CameraScreen = () => {
         description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
       });
       
+      // Chuyển trang mượt mà
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
