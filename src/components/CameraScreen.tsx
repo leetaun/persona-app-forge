@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { getCheckpointXp } from "@/lib/xp";
 import jsQR from "jsqr";
+
 
 interface Checkpoint {
   id: string;
@@ -47,6 +49,7 @@ const normalizeString = (str: string) => {
 type Step = "camera" | "preview" | "form";
 
 const CameraScreen = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const { refresh: refreshProfile } = useProfile();
@@ -138,7 +141,7 @@ const CameraScreen = () => {
       // 3. Kiểm tra xem trạm này đã quét bao giờ chưa
       if (unlockedList.includes(cp.id)) {
         toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
-        setTimeout(() => { window.location.href = "/"; }, 1500); 
+        setTimeout(() => { navigate("/"); }, 2000);
         return;
       }
 
