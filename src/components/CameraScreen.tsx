@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +44,7 @@ type Step = "camera" | "preview" | "form";
 
 const CameraScreen = () => {
   const { user } = useAuth();
+  const navigate = useNavigate(); // <-- Thêm dòng này
   const { toast } = useToast();
   const { refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -153,9 +155,15 @@ const handleQRSuccess = async (qrData: string) => {
       await supabase.from("profiles").update({ xp: (prof?.xp || 0) + 10 }).eq("user_id", user.id);
 
       await refreshProfile();
-      toast({ title: `🎉 Tuyệt vời! +10 XP`, description: `Đã mở khóa trạm ${cp.name}.` });
+      toast({ 
+        title: `🎉 Tuyệt vời! +10 XP`, 
+        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
+      });
       
-      setTimeout(() => { navigate("/"); }, 2000);
+      // THÊM ĐOẠN NÀY ĐỂ BÚNG VỀ BẢN ĐỒ SAU 1.5 GIÂY
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
 
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
