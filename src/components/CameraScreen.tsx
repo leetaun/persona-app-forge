@@ -123,28 +123,29 @@ const handleQRSuccess = async (qrData: string) => {
       if (!pillar) {
         toast({ 
           title: "Mã QR lạ", 
-          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
+          description: `Hệ thống không tìm thấy trạm khớp với mã: "${cleanData}"`, 
           variant: "destructive" 
         });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
-      const cp = checkpoints.find(c => c.name === pillar.name);
+      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT (Khử khoảng trắng và chữ hoa/thường để tránh lỗi)
+      const cp = checkpoints.find(c => 
+        c.name.trim().toLowerCase() === pillar.name.trim().toLowerCase()
+      );
 
       if (!cp) {
         toast({ 
-          title: "Lỗi đồng bộ", 
-          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
+          title: "Lỗi đồng bộ Database", 
+          description: `Trạm "${pillar.name}" chưa được tạo trong Database hoặc sai tên!`, 
           variant: "destructive" 
         });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
-      // Kiểm tra xem đã quét trạm này chưa
+      // 3. Kiểm tra xem đã quét trạm này chưa
       const { data: existing, error: checkError } = await supabase
         .from("check_ins")
         .select("id")
@@ -159,24 +160,27 @@ const handleQRSuccess = async (qrData: string) => {
         return;
       }
 
-      // Ghi nhận lượt Check-in mới
+      // 4. Lấy chuẩn điểm XP theo khu vực thay vì fix cứng số 10
+      const earnedXp = getCheckpointXp(cp) || 10;
+
+      // 5. Ghi nhận lượt Check-in mới
       const { error: ciErr } = await supabase.from("check_ins").insert({
         user_id: user.id, 
-        checkpoint_id: cp.id, // Dùng ID thật!
+        checkpoint_id: cp.id, 
         photo_url: "QR_UNLOCKED", 
         lat: coords?.lat ?? null, 
         lng: coords?.lng ?? null, 
-        xp_earned: 10,
+        xp_earned: earnedXp,
       });
       if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
 
-      // Cộng 10 XP vào Profile
+      // Cộng XP vào Profile
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       const currentXp = prof?.xp || 0;
       
       const { error: xpErr } = await supabase
         .from("profiles")
-        .update({ xp: currentXp + 10 })
+        .update({ xp: currentXp + earnedXp })
         .eq("user_id", user.id);
         
       if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
@@ -184,7 +188,7 @@ const handleQRSuccess = async (qrData: string) => {
       await refreshProfile();
 
       toast({ 
-        title: `🎉 Tuyệt vời! +10 XP`, 
+        title: `🎉 Tuyệt vời! +${earnedXp} XP`, 
         description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
       });
       
