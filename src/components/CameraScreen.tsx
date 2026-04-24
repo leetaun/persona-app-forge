@@ -25,7 +25,6 @@ const SMART_TAGS: Record<string, string[]> = {
   "Nghỉ ngơi": ["Sạch sẽ", "Dịch vụ tốt", "Phục vụ chu đáo"],
 };
 
-// ĐÂY LÀ DANH SÁCH CHUẨN ĐỂ ĐỐI CHIẾU QUÉT QR
 const MY_PILLARS = [
   { id: "49_THANHNIEN_21045507_105836586", name: "49 Thanh Niên", qr_code: "49_THANHNIEN_21045507_105836586" },
   { id: "QUANGBA_21065935_105819695", name: "Quảng Bá", qr_code: "QUANGBA_21065935_105819695" },
@@ -38,6 +37,12 @@ const MY_PILLARS = [
   { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", qr_code: "DUONG_PHAN_DINH_PHUNG" },
   { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
 ];
+
+// THUẬT TOÁN ĐỒNG BỘ: Xóa dấu tiếng Việt, xóa khoảng trắng để so sánh không bao giờ lệch
+const normalizeString = (str: string) => {
+  if (!str) return "";
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+};
 
 type Step = "camera" | "preview" | "form";
 
@@ -65,21 +70,20 @@ const CameraScreen = () => {
 
   useEffect(() => {
     supabase.from("checkpoints").select("*").order("area").order("name")
-      .then(({ data }) => {
-        setCheckpoints((data as Checkpoint[]) || []);
-        // THÊM DÒNG NÀY ĐỂ IN RA DANH SÁCH TÊN TỪ DATABASE
-        console.log("Danh sách trạm trên Database gồm có:", data?.map(c => c.name));
-      });
-    // ...
+      .then(({ data }) => setCheckpoints((data as Checkpoint[]) || []));
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {}, { enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }, 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: false 
       });
       streamRef.current = stream;
@@ -89,7 +93,6 @@ const CameraScreen = () => {
       }
       setCameraReady(true);
     } catch (err) {
-      console.error(err);
       toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
     }
   };
@@ -106,7 +109,7 @@ const CameraScreen = () => {
     return () => stopCamera();
   }, [step]);
 
-const handleQRSuccess = async (qrData: string) => {
+  const handleQRSuccess = async (qrData: string) => {
     if (!user || isScanning) return;
     setIsScanning(true); 
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -114,40 +117,43 @@ const handleQRSuccess = async (qrData: string) => {
     try {
       const cleanData = qrData.trim();
       
-      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
+      // 1. Tìm trong danh sách app
       const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
       if (!pillar) {
-        toast({ 
-          title: "Mã QR lạ", 
-          description: `Hệ thống không tìm thấy trạm khớp với mã: "${cleanData}"`, 
-          variant: "destructive" 
-        });
+        toast({ title: "Mã QR lạ", description: `Hệ thống không tìm thấy trạm: "${cleanData}"`, variant: "destructive" });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT (Khử khoảng trắng và chữ hoa/thường để tránh lỗi)
-      const cp = checkpoints.find(c => 
-        c.name.trim().toLowerCase() === pillar.name.trim().toLowerCase()
-      );
+      // 2. Tìm ID thật trong Database bằng thuật toán Normalize
+      let cp = checkpoints.find(c => normalizeString(c.name) === normalizeString(pillar.name));
 
+      // 3. AUTO-INSERT: NẾU DATABASE CHƯA CÓ TRẠM NÀY, TỰ ĐỘNG THÊM VÀO LUÔN!
       if (!cp) {
-        toast({ 
-          title: "Lỗi đồng bộ Database", 
-          description: `Trạm "${pillar.name}" chưa được tạo trong Database hoặc sai tên!`, 
-          variant: "destructive" 
-        });
-        setTimeout(() => setIsScanning(false), 3000);
-        return;
+        toast({ title: "Đang tự động khởi tạo...", description: `Đang xây dựng trạm ${pillar.name} lên Database...` });
+        
+        const { data: newCp, error: insertError } = await supabase
+          .from("checkpoints")
+          .insert({
+            name: pillar.name,
+            area: "Khám phá mới", 
+            lat: coords?.lat ?? 21.028511, // Tọa độ thực tế lúc quét hoặc mặc định (Hà Nội)
+            lng: coords?.lng ?? 105.804817,
+            xp_reward: 10
+          })
+          .select()
+          .single();
+
+        if (insertError) throw new Error(`Lỗi tự động tạo trạm: ${insertError.message}`);
+        
+        cp = newCp;
+        setCheckpoints(prev => [...prev, cp]); // Cập nhật lại bộ nhớ ngay lập tức
       }
 
-      // 3. Kiểm tra xem đã quét trạm này chưa
+      // 4. Kiểm tra lịch sử
       const { data: existing, error: checkError } = await supabase
-        .from("check_ins")
-        .select("id")
-        .match({ user_id: user.id, checkpoint_id: cp.id })
-        .maybeSingle();
+        .from("check_ins").select("id").match({ user_id: user.id, checkpoint_id: cp.id }).maybeSingle();
 
       if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
 
@@ -157,48 +163,26 @@ const handleQRSuccess = async (qrData: string) => {
         return;
       }
 
-      // 4. Lấy chuẩn điểm XP theo khu vực thay vì fix cứng số 10
+      // 5. Check-in & Trả điểm
       const earnedXp = getCheckpointXp(cp) || 10;
 
-      // 5. Ghi nhận lượt Check-in mới
       const { error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, 
-        checkpoint_id: cp.id, 
-        photo_url: "QR_UNLOCKED", 
-        lat: coords?.lat ?? null, 
-        lng: coords?.lng ?? null, 
-        xp_earned: earnedXp,
+        user_id: user.id, checkpoint_id: cp.id, photo_url: "QR_UNLOCKED", lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
       });
       if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
 
-      // Cộng XP vào Profile
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
-      const currentXp = prof?.xp || 0;
-      
-      const { error: xpErr } = await supabase
-        .from("profiles")
-        .update({ xp: currentXp + earnedXp })
-        .eq("user_id", user.id);
+      const { error: xpErr } = await supabase.from("profiles").update({ xp: (prof?.xp || 0) + earnedXp }).eq("user_id", user.id);
         
-      if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
+      if (xpErr) throw new Error(`Lỗi cộng XP: ${xpErr.message}`);
 
       await refreshProfile();
-
-      toast({ 
-        title: `🎉 Tuyệt vời! +${earnedXp} XP`, 
-        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
-      });
+      toast({ title: `🎉 Tuyệt vời! +${earnedXp} XP`, description: `Đã mở khóa ${cp.name}.` });
       
-      // Chuyển trang mượt mà
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
-      console.error("Technical Error:", err);
-      toast({ 
-        title: "Lỗi hệ thống", 
-        description: err.message || "Không thể xử lý dữ liệu lúc này.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Lỗi hệ thống", description: err.message, variant: "destructive" });
       setIsScanning(false);
     }
   };
@@ -208,8 +192,7 @@ const handleQRSuccess = async (qrData: string) => {
     const video = videoRef.current;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
