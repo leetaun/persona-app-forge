@@ -116,11 +116,26 @@ const MapScreen = () => {
     return () => { map.remove(); mapRef.current = null; setMapReady(false); };
   }, [token]);
 
-  useEffect(() => {
+ useEffect(() => {
     const load = async () => {
       if (user) {
+        // 1. Lấy danh sách ID đã quét từ Supabase
         const { data: cis } = await supabase.from("check_ins").select("checkpoint_id").eq("user_id", user.id);
-        setUnlockedIds(new Set(((cis as any[]) || []).map((c: any) => c.checkpoint_id)));
+        
+        // 2. Lấy danh sách trạm từ Database để làm "từ điển" phiên dịch
+        const { data: dbCheckpoints } = await supabase.from("checkpoints").select("id, name");
+
+        // 3. Tra cứu và lưu lại TÊN của các trạm đã mở khóa
+        const unlockedNames = new Set<string>();
+        if (cis && dbCheckpoints) {
+          cis.forEach((ci: any) => {
+            const matched = dbCheckpoints.find((d: any) => d.id === ci.checkpoint_id);
+            if (matched) unlockedNames.add(matched.name);
+          });
+        }
+        
+        // Lưu danh sách TÊN vào biến
+        setUnlockedIds(unlockedNames);
       }
       setLoading(false);
     };
@@ -134,7 +149,7 @@ const MapScreen = () => {
     if (!exploreMode) return; 
 
     checkpoints.forEach((cp) => {
-      const completed = unlockedIds.has(cp.id);
+      const completed = unlockedIds.has(cp.name);
       const el = document.createElement("div");
       el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)"};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
       el.innerHTML = completed
