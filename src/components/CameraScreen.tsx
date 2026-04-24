@@ -279,7 +279,7 @@ const CameraScreen = () => {
                <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-[scan_2s_ease-in-out_infinite]" />
             </div>
             <p className="mt-8 text-white font-semibold bg-black/80 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm">
-              {isScanning ? "Đang xử lý..." : "Đưa mã QR vào khung để nhận +10 XP"}
+              {isScanning ? "Đang xử lý..." : "Đưa mã QR vào khung"}
             </p>
             <style>{`@keyframes scan { 0%, 100% { top: 0%; } 50% { top: 100%; } }`}</style>
           </div>
