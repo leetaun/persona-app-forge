@@ -52,7 +52,7 @@ const CameraScreen = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { refresh: refreshProfile } = useProfile();
+  const { profile, refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -233,12 +233,15 @@ const submitCheckin = async () => {
         const base64String = reader.result as string;
         const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
         
-        // Tạo một bài viết ảo
+        // Lấy tên thật từ Profile, hoặc lấy từ Google, nếu không có mới dùng Nhà Thám Hiểm
+        const realName = profile?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Nhà Thám Hiểm";
+        
+        // Tạo một bài viết ảo mang tên thật của bạn
         const newPost = {
           id: Date.now().toString(),
-          user_id: "offline_user",
-          display_name: "Nhà Thám Hiểm",
-          avatar_url: null,
+          user_id: user?.id || "offline_user",
+          display_name: realName, 
+          avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url || null,
           caption: fullCaption,
           location_name: selected.name,
           photo_url: base64String,
