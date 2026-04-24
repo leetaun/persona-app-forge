@@ -252,7 +252,7 @@ const CameraScreen = () => {
               <Camera className="w-4 h-4" /> Check-in
             </button>
             <button onClick={() => setMode("qr")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "qr" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}>
-              <QrCode className="w-4 h-4" /> Quét Cột
+              <QrCode className="w-4 h-4" /> Quét QR
             </button>
           </div>
         </div>
