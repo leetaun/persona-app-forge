@@ -218,35 +218,50 @@ const CameraScreen = () => {
   const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
 
 const submitCheckin = async () => {
-    // Chạy offline nên bỏ qua check "user" và "photoBlob" phức tạp
-    if (!selected) return;
+    if (!selected || !photoBlob) return;
     setSubmitting(true);
     
     try {
-      // 1. Lấy số XP tương ứng với địa điểm đã chọn (Ví dụ: Tâm linh +100, Ẩm thực +20)
+      // 1. Cộng điểm XP
       const earnedXp = getCheckpointXp(selected);
-
-      // 2. Mở "sổ tay" Offline lấy điểm hiện tại
       const currentXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
-      
-      // 3. Cộng điểm và lưu ngược lại vào sổ
-      const newXp = currentXp + earnedXp;
-      localStorage.setItem('jourstic_xp', newXp.toString());
+      localStorage.setItem('jourstic_xp', (currentXp + earnedXp).toString());
 
-      // (Tùy chọn: Nếu muốn app lưu offline cả ảnh vào Feed thì sẽ code thêm, 
-      // nhưng ở bản Demo hiện tại chỉ cần báo thành công và búng về Map là đẹp nhất)
+      // 2. Chuyển ảnh thành chuỗi Base64 và Lưu bài viết Offline
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
+        
+        // Tạo một bài viết ảo
+        const newPost = {
+          id: Date.now().toString(),
+          user_id: "offline_user",
+          display_name: "Nhà Thám Hiểm",
+          avatar_url: null,
+          caption: fullCaption,
+          location_name: selected.name,
+          photo_url: base64String,
+          created_at: new Date().toISOString(),
+          like_count: 0,
+          reaction_count: 0,
+          user_liked: false,
+          user_reacted: false
+        };
 
-      toast({ 
-        title: `+${earnedXp} XP! 🎉`, 
-        description: `Check-in tại ${selected.name} thành công.` 
-      });
+        // Nhét bài viết vào sổ tay Feed
+        const existingPosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
+        localStorage.setItem('jourstic_posts', JSON.stringify([newPost, ...existingPosts]));
+
+        toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in tại ${selected.name} thành công.` });
+        setTimeout(() => { window.location.href = "/"; }, 1500); 
+      };
       
-      // Búng về bản đồ
-      setTimeout(() => { window.location.href = "/"; }, 1500); 
-      
+      // Đọc file ảnh
+      reader.readAsDataURL(photoBlob);
+
     } catch (err: any) {
       toast({ title: "Lỗi hệ thống", description: "Lỗi khi lưu điểm offline.", variant: "destructive" });
-    } finally { 
       setSubmitting(false); 
     }
   };
