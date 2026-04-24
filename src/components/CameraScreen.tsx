@@ -141,7 +141,7 @@ const handleQRSuccess = async (qrData: string) => {
 
       if (existing) {
         toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
-        setTimeout(() => { navigate("/"); }, 1500); 
+        setTimeout(() => { window.location.href = "/"; }, 2000); 
         return;
       }
 
@@ -161,9 +161,7 @@ const handleQRSuccess = async (qrData: string) => {
       });
       
       // THÊM ĐOẠN NÀY ĐỂ BÚNG VỀ BẢN ĐỒ SAU 1.5 GIÂY
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+      setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
@@ -297,7 +295,7 @@ const handleQRSuccess = async (qrData: string) => {
       await refreshProfile();
       toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in thành công.` });
       
-      setTimeout(() => { navigate("/"); }, 1500); 
+      setTimeout(() => { window.location.href = "/"; }, 2000); 
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
     } finally { setSubmitting(false); }
