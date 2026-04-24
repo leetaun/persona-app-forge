@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
-import { getCheckpointXp } from "@/lib/xp";
 import jsQR from "jsqr";
 
 interface Checkpoint {
@@ -26,7 +25,6 @@ const SMART_TAGS: Record<string, string[]> = {
   "Nghỉ ngơi": ["Sạch sẽ", "Dịch vụ tốt", "Phục vụ chu đáo"],
 };
 
-// ĐÂY LÀ DANH SÁCH CHUẨN ĐỂ ĐỐI CHIẾU QUÉT QR
 const MY_PILLARS = [
   { id: "49_THANHNIEN_21045507_105836586", name: "49 Thanh Niên", qr_code: "49_THANHNIEN_21045507_105836586" },
   { id: "QUANGBA_21065935_105819695", name: "Quảng Bá", qr_code: "QUANGBA_21065935_105819695" },
@@ -40,11 +38,20 @@ const MY_PILLARS = [
   { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
 ];
 
+// 🚀 HÀM TÍNH ĐIỂM CHUẨN MỚI DỰA THEO TÊN NHÓM
+const getCalculatedXp = (area: string | null) => {
+  if (area === "Văn hóa - Tâm linh") return 100;
+  if (area === "Nghệ thuật") return 80;
+  if (area === "Nghỉ ngơi") return 50;
+  if (area === "Ẩm thực") return 20;
+  return 10; // Điểm mặc định nếu không thuộc nhóm nào
+};
+
 type Step = "camera" | "preview" | "form";
 
 const CameraScreen = () => {
   const { user } = useAuth();
-  const navigate = useNavigate(); // <-- Thêm dòng này
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -80,11 +87,7 @@ const CameraScreen = () => {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }, 
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: false 
       });
       streamRef.current = stream;
@@ -111,15 +114,13 @@ const CameraScreen = () => {
     return () => stopCamera();
   }, [step]);
 
-const handleQRSuccess = async (qrData: string) => {
+  const handleQRSuccess = async (qrData: string) => {
     if (!user || isScanning) return;
     setIsScanning(true); 
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
     try {
       const cleanData = qrData.trim();
-      
-      // 1. Tìm tên cột bằng QR
       const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
       if (!pillar) {
@@ -128,7 +129,6 @@ const handleQRSuccess = async (qrData: string) => {
         return;
       }
 
-      // 2. Tìm UUID thật trong Supabase
       const cp = checkpoints.find(c => c.name === pillar.name);
       if (!cp) {
         toast({ title: "Lỗi đồng bộ", description: `Chưa có ${pillar.name} trên Database!`, variant: "destructive" });
@@ -136,7 +136,6 @@ const handleQRSuccess = async (qrData: string) => {
         return;
       }
 
-      // 3. Kiểm tra xem đã quét chưa
       const { data: existing } = await supabase.from("check_ins").select("id").match({ user_id: user.id, checkpoint_id: cp.id }).maybeSingle();
 
       if (existing) {
@@ -145,22 +144,15 @@ const handleQRSuccess = async (qrData: string) => {
         return;
       }
 
-      // 4. Lưu lên Supabase
       await supabase.from("check_ins").insert({
         user_id: user.id, checkpoint_id: cp.id, photo_url: "QR_UNLOCKED", lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: 10,
       });
 
-      // 5. Cộng điểm
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp || 0) + 10 }).eq("user_id", user.id);
 
       await refreshProfile();
-      toast({ 
-        title: `🎉 Tuyệt vời! +10 XP`, 
-        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
-      });
-      
-      // THÊM ĐOẠN NÀY ĐỂ BÚNG VỀ BẢN ĐỒ SAU 1.5 GIÂY
+      toast({ title: `🎉 Tuyệt vời! +10 XP`, description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` });
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
@@ -174,76 +166,42 @@ const handleQRSuccess = async (qrData: string) => {
     const video = videoRef.current;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
-        if (code && code.data) {
-          handleQRSuccess(code.data);
-          return;
-        }
+        if (code && code.data) { handleQRSuccess(code.data); return; }
       }
     }
     requestRef.current = requestAnimationFrame(scanQRCode);
   };
+
   const onQRFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file || isScanning) return;
-
-  const img = new Image();
-  const objectUrl = URL.createObjectURL(file);
-
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
+    const file = e.target.files?.[0];
+    if (!file || isScanning) return;
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { URL.revokeObjectURL(objectUrl); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
       URL.revokeObjectURL(objectUrl);
-      return;
-    }
-
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: "attemptBoth",
-    });
-
-    URL.revokeObjectURL(objectUrl);
-
-    if (code && code.data) {
-      handleQRSuccess(code.data);
-    } else {
-      toast({
-        title: "Không tìm thấy mã QR",
-        description: "Vui lòng chọn ảnh có mã QR rõ nét hơn.",
-        variant: "destructive",
-      });
-    }
-
-    e.target.value = "";
+      if (code && code.data) handleQRSuccess(code.data);
+      else toast({ title: "Không tìm thấy mã QR", description: "Vui lòng chọn ảnh rõ nét hơn.", variant: "destructive" });
+      e.target.value = "";
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); toast({ title: "Lỗi ảnh", variant: "destructive" }); e.target.value = ""; };
+    img.src = objectUrl;
   };
-
-  img.onerror = () => {
-    URL.revokeObjectURL(objectUrl);
-    toast({
-      title: "Lỗi ảnh",
-      description: "Không thể đọc ảnh này.",
-      variant: "destructive",
-    });
-    e.target.value = "";
-  };
-
-  img.src = objectUrl;
-};
 
   useEffect(() => {
-    if (mode === "qr" && cameraReady && !isScanning) { requestRef.current = requestAnimationFrame(scanQRCode); }
+    if (mode === "qr" && cameraReady && !isScanning) requestRef.current = requestAnimationFrame(scanQRCode);
     return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [mode, cameraReady, isScanning]);
 
@@ -253,9 +211,7 @@ const handleQRSuccess = async (qrData: string) => {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
-        if (blob) { setPhotoBlob(blob); setPhotoPreview(URL.createObjectURL(blob)); setStep("preview"); }
-      }, "image/jpeg", 0.9);
+    canvas.toBlob((blob) => { if (blob) { setPhotoBlob(blob); setPhotoPreview(URL.createObjectURL(blob)); setStep("preview"); } }, "image/jpeg", 0.9);
   };
 
   const onFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,29 +222,25 @@ const handleQRSuccess = async (qrData: string) => {
 
   const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
 
- const submitCheckin = async () => {
+  const submitCheckin = async () => {
     if (!user || !photoBlob || !selected) return;
     setSubmitting(true);
     try {
-      // 1. Up ảnh lên Storage
       const path = `${user.id}/${Date.now()}.jpg`;
       const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
       
-      const earnedXp = getCheckpointXp(selected);
+      const earnedXp = getCalculatedXp(selected.area);
 
-      // 2. Lưu vào check_ins
       const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
         user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
       }).select().single();
       if (ciErr) throw ciErr;
 
-      // 3. Đăng lên Feed (posts)
       const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
       await supabase.from("posts").insert({ user_id: user.id, check_in_id: checkIn.id, photo_url: pub.publicUrl, caption: fullCaption || null, location_name: selected.name });
 
-      // 4. Cộng XP
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
       
@@ -301,7 +253,19 @@ const handleQRSuccess = async (qrData: string) => {
     } finally { setSubmitting(false); }
   };
 
-  const grouped = checkpoints.reduce<Record<string, Checkpoint[]>>((acc, c) => { const k = c.area || "Khác"; (acc[k] ||= []).push(c); return acc; }, {});
+  // 🚀 LỌC & NHÓM DANH SÁCH ĐỊA ĐIỂM CHUẨN
+  // Loại bỏ các Trạm QR (MY_PILLARS) khỏi danh sách để chọn ảnh check-in cho gọn
+  const checkinLocations = checkpoints.filter(
+    (c) => !MY_PILLARS.some((p) => p.name === c.name)
+  );
+  
+  // Nhóm lại theo Area (Văn hóa - Tâm linh, Ẩm thực...)
+  const grouped = checkinLocations.reduce<Record<string, Checkpoint[]>>((acc, c) => { 
+    const k = c.area || "Khác"; 
+    (acc[k] ||= []).push(c); 
+    return acc; 
+  }, {});
+
   const tags = selected?.area ? SMART_TAGS[selected.area] ?? [] : [];
   const addTag = (tag: string) => { setCaption((prev) => { if (!prev.trim()) return tag; if (prev.toLowerCase().includes(tag.toLowerCase())) return prev; return `${prev.trim()}, ${tag.toLowerCase()}`; }); };
 
@@ -310,12 +274,8 @@ const handleQRSuccess = async (qrData: string) => {
       <div className="h-full relative bg-black flex flex-col overflow-hidden">
         <div className="absolute top-12 left-0 right-0 z-30 flex justify-center">
           <div className="bg-black/60 backdrop-blur-md rounded-full p-1 flex gap-1 border border-white/20">
-            <button onClick={() => setMode("photo")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "photo" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}>
-              <Camera className="w-4 h-4" /> Check-in
-            </button>
-            <button onClick={() => setMode("qr")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "qr" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}>
-              <QrCode className="w-4 h-4" /> Quét QR
-            </button>
+            <button onClick={() => setMode("photo")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "photo" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}><Camera className="w-4 h-4" /> Check-in</button>
+            <button onClick={() => setMode("qr")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "qr" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}><QrCode className="w-4 h-4" /> Quét QR</button>
           </div>
         </div>
 
@@ -333,20 +293,10 @@ const handleQRSuccess = async (qrData: string) => {
                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-xl"></div>
                <div className="absolute top-0 left-0 w-full h-[2px] bg-red-500 shadow-[0_0_15px_red] animate-[scan_2s_ease-in-out_infinite]" />
             </div>
-            <p className="mt-8 text-white font-semibold bg-black/80 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm">
-              {isScanning ? "Đang xử lý..." : "Đưa mã QR vào khung"}
-            </p>
+            <p className="mt-8 text-white font-semibold bg-black/80 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm">{isScanning ? "Đang xử lý..." : "Đưa mã QR vào khung"}</p>
             <label className="mt-4 pointer-events-auto inline-flex items-center gap-2 px-5 py-3 rounded-full bg-card/90 backdrop-blur text-foreground text-sm font-semibold cursor-pointer hover:bg-card transition border border-white/10">
-  <ImageIcon className="w-4 h-4" />
-  Tải ảnh QR lên
-  <input
-    type="file"
-    accept="image/*"
-    onChange={onQRFileUpload}
-    className="hidden"
-    disabled={isScanning}
-  />
-</label>
+              <ImageIcon className="w-4 h-4" /> Tải ảnh QR lên <input type="file" accept="image/*" onChange={onQRFileUpload} className="hidden" disabled={isScanning} />
+            </label>
             <style>{`@keyframes scan { 0%, 100% { top: 0%; } 50% { top: 100%; } }`}</style>
           </div>
         )}
@@ -354,12 +304,8 @@ const handleQRSuccess = async (qrData: string) => {
         {mode === "photo" && (
           <div className="absolute bottom-28 left-0 right-0 z-10 flex flex-col items-center gap-4 px-4">
             <div className="flex items-center gap-6">
-              <label className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card">
-                <ImageIcon className="w-5 h-5 text-foreground" /><input type="file" accept="image/*" onChange={onFileUpload} className="hidden" />
-              </label>
-              <button onClick={capture} disabled={!cameraReady} className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-2xl active:scale-95 transition disabled:opacity-50">
-                <div className="w-full h-full rounded-full border-2 border-primary/40" />
-              </button>
+              <label className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card"><ImageIcon className="w-5 h-5 text-foreground" /><input type="file" accept="image/*" onChange={onFileUpload} className="hidden" /></label>
+              <button onClick={capture} disabled={!cameraReady} className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-2xl active:scale-95 transition disabled:opacity-50"><div className="w-full h-full rounded-full border-2 border-primary/40" /></button>
               <div className="w-12 h-12" />
             </div>
             <p className="text-white/80 text-xs font-medium">Chụp ảnh để đăng Bảng tin</p>
@@ -384,14 +330,40 @@ const handleQRSuccess = async (qrData: string) => {
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-12 pb-3 flex items-center gap-3"><button onClick={() => setStep("preview")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button><h1 className="text-lg font-bold text-foreground">Đánh giá check-in</h1></div>
       <div className="px-4 pt-4 space-y-5">
         {photoPreview && <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-muted"><img src={photoPreview} alt="" className="w-full h-full object-cover" /></div>}
+        
+        {/* 🚀 FORM CHỌN ĐỊA ĐIỂM CHUẨN: CHIA NHÓM VÀ CẬP NHẬT ĐIỂM */}
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Địa điểm</label>
-          <select value={selected?.id ?? ""} onChange={(e) => { setSelected(checkpoints.find((c) => c.id === e.target.value) ?? null); setCaption(""); }} className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground">
+          <select 
+            value={selected?.id ?? ""} 
+            onChange={(e) => { 
+              setSelected(checkpoints.find((c) => c.id === e.target.value) ?? null); 
+              setCaption(""); 
+            }} 
+            className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
+          >
             <option value="">📍 Chọn địa điểm...</option>
-            {Object.entries(grouped).map(([area, list]) => (<optgroup key={area} label={area}>{list.map((c) => (<option key={c.id} value={c.id}>{c.name} (+{getCheckpointXp(c)} XP)</option>))}</optgroup>))}
+            {Object.entries(grouped).map(([area, list]) => (
+              <optgroup key={area} label={area}>
+                {list.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} (+{getCalculatedXp(c.area)} XP)
+                  </option>
+                ))}
+              </optgroup>
+            ))}
           </select>
-          {selected && <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="w-3.5 h-3.5 text-primary" /><span>{selected.area}</span><span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">+{getCheckpointXp(selected)} XP</span></div>}
+          {selected && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <MapPin className="w-3.5 h-3.5 text-primary" />
+              <span>{selected.area}</span>
+              <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                +{getCalculatedXp(selected.area)} XP
+              </span>
+            </div>
+          )}
         </div>
+
         <div>
           <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Đánh giá</label>
           <div className="flex items-center gap-2">
