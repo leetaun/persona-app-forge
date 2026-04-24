@@ -117,87 +117,48 @@ const handleQRSuccess = async (qrData: string) => {
     try {
       const cleanData = qrData.trim();
       
-      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
+      // 1. Tìm tên cột bằng QR
       const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
       if (!pillar) {
-        toast({ 
-          title: "Mã QR lạ", 
-          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
-          variant: "destructive" 
-        });
+        toast({ title: "Mã QR lạ", description: `Hệ thống không tìm thấy trạm.`, variant: "destructive" });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
+      // 2. Tìm UUID thật trong Supabase
       const cp = checkpoints.find(c => c.name === pillar.name);
-
       if (!cp) {
-        toast({ 
-          title: "Lỗi đồng bộ", 
-          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
-          variant: "destructive" 
-        });
+        toast({ title: "Lỗi đồng bộ", description: `Chưa có ${pillar.name} trên Database!`, variant: "destructive" });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
-      // Kiểm tra xem đã quét trạm này chưa
-      const { data: existing, error: checkError } = await supabase
-        .from("check_ins")
-        .select("id")
-        .match({ user_id: user.id, checkpoint_id: cp.id })
-        .maybeSingle();
-
-      if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
+      // 3. Kiểm tra xem đã quét chưa
+      const { data: existing } = await supabase.from("check_ins").select("id").match({ user_id: user.id, checkpoint_id: cp.id }).maybeSingle();
 
       if (existing) {
         toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
-        setTimeout(() => { window.location.href = "/"; }, 1500); 
+        setTimeout(() => { navigate("/"); }, 1500); 
         return;
       }
 
-      // Ghi nhận lượt Check-in mới
-      const { error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, 
-        checkpoint_id: cp.id, // Dùng ID thật!
-        photo_url: "QR_UNLOCKED", 
-        lat: coords?.lat ?? null, 
-        lng: coords?.lng ?? null, 
-        xp_earned: 10,
+      // 4. Lưu lên Supabase
+      await supabase.from("check_ins").insert({
+        user_id: user.id, checkpoint_id: cp.id, photo_url: "QR_UNLOCKED", lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: 10,
       });
-      if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
 
-      // Cộng 10 XP vào Profile
+      // 5. Cộng điểm
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
-      const currentXp = prof?.xp || 0;
-      
-      const { error: xpErr } = await supabase
-        .from("profiles")
-        .update({ xp: currentXp + 10 })
-        .eq("user_id", user.id);
-        
-      if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
+      await supabase.from("profiles").update({ xp: (prof?.xp || 0) + 10 }).eq("user_id", user.id);
 
       await refreshProfile();
-
-      toast({ 
-        title: `🎉 Tuyệt vời! +10 XP`, 
-        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
-      });
+      toast({ title: `🎉 Tuyệt vời! +10 XP`, description: `Đã mở khóa trạm ${cp.name}.` });
       
-      // Chuyển trang mượt mà
-      setTimeout(() => { window.location.href = "/"; }, 2000);
+      setTimeout(() => { navigate("/"); }, 2000);
 
     } catch (err: any) {
-      console.error("Technical Error:", err);
-      toast({ 
-        title: "Lỗi hệ thống", 
-        description: err.message || "Không thể xử lý dữ liệu lúc này.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Lỗi", description: err.message, variant: "destructive" });
       setIsScanning(false);
     }
   };
@@ -299,26 +260,36 @@ const handleQRSuccess = async (qrData: string) => {
 
   const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
 
-  const submitCheckin = async () => {
+ const submitCheckin = async () => {
     if (!user || !photoBlob || !selected) return;
     setSubmitting(true);
     try {
+      // 1. Up ảnh lên Storage
       const path = `${user.id}/${Date.now()}.jpg`;
       const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
+      
       const earnedXp = getCheckpointXp(selected);
+
+      // 2. Lưu vào check_ins
       const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
-          user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
-        }).select().single();
+        user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
+      }).select().single();
       if (ciErr) throw ciErr;
+
+      // 3. Đăng lên Feed (posts)
       const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
       await supabase.from("posts").insert({ user_id: user.id, check_in_id: checkIn.id, photo_url: pub.publicUrl, caption: fullCaption || null, location_name: selected.name });
+
+      // 4. Cộng XP
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
+      
       await refreshProfile();
       toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in thành công.` });
-      window.location.href = "/"; 
+      
+      setTimeout(() => { navigate("/"); }, 1500); 
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
     } finally { setSubmitting(false); }
@@ -337,7 +308,7 @@ const handleQRSuccess = async (qrData: string) => {
               <Camera className="w-4 h-4" /> Check-in
             </button>
             <button onClick={() => setMode("qr")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "qr" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}>
-              <QrCode className="w-4 h-4" /> Quét Cột
+              <QrCode className="w-4 h-4" /> Quét QR
             </button>
           </div>
         </div>
