@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { getCheckpointXp } from "@/lib/xp";
 import jsQR from "jsqr";
-
 
 interface Checkpoint {
   id: string;
@@ -27,6 +25,7 @@ const SMART_TAGS: Record<string, string[]> = {
   "Nghỉ ngơi": ["Sạch sẽ", "Dịch vụ tốt", "Phục vụ chu đáo"],
 };
 
+// ĐÂY LÀ DANH SÁCH CHUẨN ĐỂ ĐỐI CHIẾU QUÉT QR
 const MY_PILLARS = [
   { id: "49_THANHNIEN_21045507_105836586", name: "49 Thanh Niên", qr_code: "49_THANHNIEN_21045507_105836586" },
   { id: "QUANGBA_21065935_105819695", name: "Quảng Bá", qr_code: "QUANGBA_21065935_105819695" },
@@ -40,19 +39,12 @@ const MY_PILLARS = [
   { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
 ];
 
-// THUẬT TOÁN ĐỒNG BỘ: Xóa dấu tiếng Việt, xóa khoảng trắng để so sánh không bao giờ lệch
-const normalizeString = (str: string) => {
-  if (!str) return "";
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-};
-
 type Step = "camera" | "preview" | "form";
 
 const CameraScreen = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { profile, refresh: refreshProfile } = useProfile();
+  const { refresh: refreshProfile } = useProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -86,7 +78,11 @@ const CameraScreen = () => {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+        video: { 
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }, 
         audio: false 
       });
       streamRef.current = stream;
@@ -96,6 +92,7 @@ const CameraScreen = () => {
       }
       setCameraReady(true);
     } catch (err) {
+      console.error(err);
       toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
     }
   };
@@ -112,19 +109,18 @@ const CameraScreen = () => {
     return () => stopCamera();
   }, [step]);
 
-  const handleQRSuccess = async (qrData: string) => {
-    // Đã bỏ check "user" để có thể quét offline hoàn toàn
-    if (isScanning) return;
+const handleQRSuccess = async (qrData: string) => {
+    if (!user || isScanning) return;
     setIsScanning(true); 
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
     try {
       const cleanData = qrData.trim();
       
-      // 1. Tìm thông tin trạm từ mã QR quét được trong MY_PILLARS
-      const cp = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
+      // 1. Tìm thông tin cột trong danh sách MY_PILLARS từ mã QR
+      const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
-      if (!cp) {
+      if (!pillar) {
         toast({ 
           title: "Mã QR lạ", 
           description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
@@ -134,39 +130,72 @@ const CameraScreen = () => {
         return;
       }
 
-      // 2. Lấy danh sách các trạm ĐÃ QUÉT từ bộ nhớ tạm (localStorage)
-      const unlockedData = localStorage.getItem('jourstic_unlocked');
-      let unlockedList = unlockedData ? JSON.parse(unlockedData) : [];
+      // 2. TÌM ID THẬT TRONG DATABASE DỰA VÀO TÊN CỘT
+      const cp = checkpoints.find(c => c.name === pillar.name);
 
-      // 3. Kiểm tra xem trạm này đã quét bao giờ chưa
-      if (unlockedList.includes(cp.id)) {
-        toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
-        setTimeout(() => { navigate("/"); }, 2000);
+      if (!cp) {
+        toast({ 
+          title: "Lỗi đồng bộ", 
+          description: `Trạm "${pillar.name}" chưa được tạo trong Database của bạn!`, 
+          variant: "destructive" 
+        });
+        setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 4. CHƯA QUÉT -> Ghi nhận quét thành công vào localStorage
-      unlockedList.push(cp.id);
-      localStorage.setItem('jourstic_unlocked', JSON.stringify(unlockedList));
+      // 3. TỪ ĐÂY SỬ DỤNG cp.id (LÀ UUID THẬT CỦA DATABASE) ĐỂ LÀM VIỆC
+      // Kiểm tra xem đã quét trạm này chưa
+      const { data: existing, error: checkError } = await supabase
+        .from("check_ins")
+        .select("id")
+        .match({ user_id: user.id, checkpoint_id: cp.id })
+        .maybeSingle();
 
-      // 5. Cộng XP và lưu offline
-      const currentXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
-      const newXp = currentXp + 10;
-      localStorage.setItem('jourstic_xp', newXp.toString());
+      if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
+
+      if (existing) {
+        toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
+        setTimeout(() => { window.location.href = "/"; }, 1500); 
+        return;
+      }
+
+      // Ghi nhận lượt Check-in mới
+      const { error: ciErr } = await supabase.from("check_ins").insert({
+        user_id: user.id, 
+        checkpoint_id: cp.id, // Dùng ID thật!
+        photo_url: "QR_UNLOCKED", 
+        lat: coords?.lat ?? null, 
+        lng: coords?.lng ?? null, 
+        xp_earned: 10,
+      });
+      if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
+
+      // Cộng 10 XP vào Profile
+      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
+      const currentXp = prof?.xp || 0;
+      
+      const { error: xpErr } = await supabase
+        .from("profiles")
+        .update({ xp: currentXp + 10 })
+        .eq("user_id", user.id);
+        
+      if (xpErr) throw new Error(`Lỗi cộng điểm XP: ${xpErr.message}`);
+
+      await refreshProfile();
 
       toast({ 
         title: `🎉 Tuyệt vời! +10 XP`, 
         description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
       });
       
-      // Búng về trang bản đồ
+      // Chuyển trang mượt mà
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
-      console.error("Offline Scan Error:", err);
+      console.error("Technical Error:", err);
       toast({ 
-        title: "Lỗi thiết bị", 
-        description: "Không thể xử lý bộ nhớ tạm lúc này.", 
+        title: "Lỗi hệ thống", 
+        description: err.message || "Không thể xử lý dữ liệu lúc này.", 
         variant: "destructive" 
       });
       setIsScanning(false);
@@ -178,7 +207,8 @@ const CameraScreen = () => {
     const video = videoRef.current;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -192,6 +222,58 @@ const CameraScreen = () => {
     }
     requestRef.current = requestAnimationFrame(scanQRCode);
   };
+  const onQRFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file || isScanning) return;
+
+  const img = new Image();
+  const objectUrl = URL.createObjectURL(file);
+
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "attemptBoth",
+    });
+
+    URL.revokeObjectURL(objectUrl);
+
+    if (code && code.data) {
+      handleQRSuccess(code.data);
+    } else {
+      toast({
+        title: "Không tìm thấy mã QR",
+        description: "Vui lòng chọn ảnh có mã QR rõ nét hơn.",
+        variant: "destructive",
+      });
+    }
+
+    e.target.value = "";
+  };
+
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    toast({
+      title: "Lỗi ảnh",
+      description: "Không thể đọc ảnh này.",
+      variant: "destructive",
+    });
+    e.target.value = "";
+  };
+
+  img.src = objectUrl;
+};
 
   useEffect(() => {
     if (mode === "qr" && cameraReady && !isScanning) { requestRef.current = requestAnimationFrame(scanQRCode); }
@@ -217,56 +299,29 @@ const CameraScreen = () => {
 
   const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
 
-const submitCheckin = async () => {
-    if (!selected || !photoBlob) return;
+  const submitCheckin = async () => {
+    if (!user || !photoBlob || !selected) return;
     setSubmitting(true);
-    
     try {
-      // 1. Cộng điểm XP
+      const path = `${user.id}/${Date.now()}.jpg`;
+      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
       const earnedXp = getCheckpointXp(selected);
-      const currentXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
-      localStorage.setItem('jourstic_xp', (currentXp + earnedXp).toString());
-
-      // 2. Chuyển ảnh thành chuỗi Base64 và Lưu bài viết Offline
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
-        
-        // Lấy tên thật từ Profile, hoặc lấy từ Google, nếu không có mới dùng Nhà Thám Hiểm
-        const realName = profile?.display_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Nhà Thám Hiểm";
-        
-        // Tạo một bài viết ảo mang tên thật của bạn
-        const newPost = {
-          id: Date.now().toString(),
-          user_id: user?.id || "offline_user",
-          display_name: realName, 
-          avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url || null,
-          caption: fullCaption,
-          location_name: selected.name,
-          photo_url: base64String,
-          created_at: new Date().toISOString(),
-          like_count: 0,
-          reaction_count: 0,
-          user_liked: false,
-          user_reacted: false
-        };
-
-        // Nhét bài viết vào sổ tay Feed
-        const existingPosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
-        localStorage.setItem('jourstic_posts', JSON.stringify([newPost, ...existingPosts]));
-
-        toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in tại ${selected.name} thành công.` });
-        setTimeout(() => { window.location.href = "/"; }, 1500); 
-      };
-      
-      // Đọc file ảnh
-      reader.readAsDataURL(photoBlob);
-
+      const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
+          user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
+        }).select().single();
+      if (ciErr) throw ciErr;
+      const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
+      await supabase.from("posts").insert({ user_id: user.id, check_in_id: checkIn.id, photo_url: pub.publicUrl, caption: fullCaption || null, location_name: selected.name });
+      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
+      await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
+      await refreshProfile();
+      toast({ title: `+${earnedXp} XP! 🎉`, description: `Check-in thành công.` });
+      window.location.href = "/"; 
     } catch (err: any) {
-      toast({ title: "Lỗi hệ thống", description: "Lỗi khi lưu điểm offline.", variant: "destructive" });
-      setSubmitting(false); 
-    }
+      toast({ title: "Lỗi", description: err.message, variant: "destructive" });
+    } finally { setSubmitting(false); }
   };
 
   const grouped = checkpoints.reduce<Record<string, Checkpoint[]>>((acc, c) => { const k = c.area || "Khác"; (acc[k] ||= []).push(c); return acc; }, {});
@@ -282,7 +337,7 @@ const submitCheckin = async () => {
               <Camera className="w-4 h-4" /> Check-in
             </button>
             <button onClick={() => setMode("qr")} className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${mode === "qr" ? "bg-primary text-primary-foreground shadow-lg" : "text-white/70 hover:text-white"}`}>
-              <QrCode className="w-4 h-4" /> Quét QR
+              <QrCode className="w-4 h-4" /> Quét Cột
             </button>
           </div>
         </div>
@@ -304,6 +359,17 @@ const submitCheckin = async () => {
             <p className="mt-8 text-white font-semibold bg-black/80 px-6 py-3 rounded-full backdrop-blur-md border border-white/10 text-sm">
               {isScanning ? "Đang xử lý..." : "Đưa mã QR vào khung"}
             </p>
+            <label className="mt-4 pointer-events-auto inline-flex items-center gap-2 px-5 py-3 rounded-full bg-card/90 backdrop-blur text-foreground text-sm font-semibold cursor-pointer hover:bg-card transition border border-white/10">
+  <ImageIcon className="w-4 h-4" />
+  Tải ảnh QR lên
+  <input
+    type="file"
+    accept="image/*"
+    onChange={onQRFileUpload}
+    className="hidden"
+    disabled={isScanning}
+  />
+</label>
             <style>{`@keyframes scan { 0%, 100% { top: 0%; } 50% { top: 100%; } }`}</style>
           </div>
         )}
