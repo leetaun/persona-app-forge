@@ -116,46 +116,28 @@ const MapScreen = () => {
     return () => { map.remove(); mapRef.current = null; setMapReady(false); };
   }, [token]);
 
-  useEffect(() => {
-    const load = async () => {
-      if (user) {
-        const { data: cis } = await supabase.from("check_ins").select("checkpoint_id").eq("user_id", user.id);
-        setUnlockedIds(new Set(((cis as any[]) || []).map((c: any) => c.checkpoint_id)));
-      }
-      setLoading(false);
-    };
-    load();
-  }, [user]);
+ useEffect(() => {
+    const load = async () => {
+      if (user) {
+        // 1. Lấy danh sách ID các trạm đã check-in từ Database
+        const { data: cis } = await supabase.from("check_ins").select("checkpoint_id").eq("user_id", user.id);
+        const checkedInIds = ((cis as any[]) || []).map((c: any) => c.checkpoint_id);
 
-  useEffect(() => {
-    if (!mapRef.current || !mapReady) return;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-    if (!exploreMode) return; 
-
-    checkpoints.forEach((cp) => {
-      const completed = unlockedIds.has(cp.id);
-      const el = document.createElement("div");
-      el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)"};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
-      el.innerHTML = completed
-        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
-        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
-
-      // Giao diện Popup: Đã fix lại phông chữ hiện đại, bo góc và màu sắc đẹp hơn
-      const popup = new mapboxgl.Popup({ offset: 22, closeButton: false }).setHTML(
-        `<div style="font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; font-size:13px; min-width:180px; max-width:220px; color:#334155;">
-          <p style="font-weight:800; font-size:16px; margin:0 0 6px; color:#0f172a;">${cp.name}</p>
-          ${cp.poem ? `<div style="background:#f0fdf4; border-left:3px solid #16a34a; padding:8px; margin:8px 0; border-radius:6px;"><p style="color:#166534; margin:0; white-space:pre-line; font-style:italic; line-height:1.5;">${cp.poem}</p></div>` : ""}
-          ${cp.description ? `<p style="color:#475569; margin:4px 0; line-height:1.4;">${cp.description}</p>` : ""}
-          ${completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
-        </div>`
-      );
-
-      const marker = new mapboxgl.Marker({ element: el }).setLngLat([cp.lng, cp.lat]).setPopup(popup).addTo(mapRef.current!);
-      markersRef.current.push(marker);
-    });
-  }, [checkpoints, unlockedIds, exploreMode, mapReady]);
-
+        if (checkedInIds.length > 0) {
+          // 2. Tra cứu xem các ID đó ứng với TÊN gì
+          const { data: dbCps } = await supabase.from("checkpoints").select("id, name").in("id", checkedInIds);
+          
+          // 3. Ghi nhớ các TÊN đã mở khóa
+          const unlockedNames = new Set(((dbCps as any[]) || []).map((c: any) => c.name));
+          setUnlockedIds(unlockedNames);
+        } else {
+          setUnlockedIds(new Set());
+        }
+      }
+      setLoading(false);
+    };
+    load();
+  }, [user]);
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;
     if (!("geolocation" in navigator)) return;
