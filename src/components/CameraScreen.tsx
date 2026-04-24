@@ -77,7 +77,15 @@ const CameraScreen = () => {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      // FIX 1: Ép độ phân giải HD để camera đọc mã QR nhạy hơn
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }, 
+        audio: false 
+      });
       streamRef.current = stream;
       if (videoRef.current) { 
         videoRef.current.srcObject = stream; 
@@ -109,23 +117,31 @@ const CameraScreen = () => {
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
     try {
-      // 1. Dò tìm mã QR trong hệ thống
-      const cp = MY_PILLARS.find(p => p.qr_code === qrData);
+      // FIX 2: Cắt bỏ khoảng trắng thừa ở đầu/cuối của mã QR (đề phòng tạo mã lỗi)
+      const cleanData = qrData.trim();
+      const cp = MY_PILLARS.find(p => p.qr_code === cleanData);
+      
       if (!cp) {
-        toast({ title: "Mã không hợp lệ", description: "Mã QR này không thuộc hệ thống Jourstic!", variant: "destructive" });
-        setTimeout(() => setIsScanning(false), 2000);
+        // FIX 3: In hẳn dòng chữ quét được ra để bắt bệnh
+        toast({ 
+          title: "Mã QR không khớp!", 
+          description: `Máy quét được chữ: "${cleanData}". Hãy tạo lại mã QR với đúng chuỗi văn bản này.`, 
+          variant: "destructive",
+          duration: 5000
+        });
+        setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 2. Chống Spam: Check xem người dùng đã mở khóa cột này chưa
+      // Chống Spam: Check xem người dùng đã mở khóa cột này chưa
       const { data: existing } = await supabase.from("check_ins").select("id").match({ user_id: user.id, checkpoint_id: cp.id }).maybeSingle();
       if (existing) {
         toast({ title: "Đã mở khóa", description: `Bạn đã khám phá ${cp.name} trước đó rồi, không được cộng thêm điểm!` });
-        setTimeout(() => { window.location.href = "/"; }, 1500); // Búng về Map
+        setTimeout(() => { window.location.href = "/"; }, 1500); 
         return;
       }
 
-      // 3. Lưu vào Database & +10 XP
+      // Lưu vào Database & +10 XP
       const { error: ciErr } = await supabase.from("check_ins").insert({
         user_id: user.id, 
         checkpoint_id: cp.id, 
@@ -140,7 +156,7 @@ const CameraScreen = () => {
       await supabase.from("profiles").update({ xp: (prof?.xp || 0) + 10 }).eq("user_id", user.id);
       await refreshProfile();
 
-      // 4. Báo thành công và đá về Map
+      // Báo thành công và đá về Map
       toast({ title: `🎉 Chúc mừng! +10 XP`, description: `Bạn đã mở khóa thành công trạm ${cp.name}.` });
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
@@ -162,6 +178,7 @@ const CameraScreen = () => {
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // FIX 4: Chuyển sang attemptBoth để quét các mã mờ, khó đọc
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
         if (code && code.data) {
           handleQRSuccess(code.data);
@@ -241,7 +258,6 @@ const CameraScreen = () => {
         </div>
 
         <div className="absolute inset-0 z-0">
-          {/* Sửa lỗi trắng màn hình bằng autoPlay playsInline muted */}
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
           {!cameraReady && <div className="absolute inset-0 flex items-center justify-center bg-black/60"><Loader2 className="w-8 h-8 text-white animate-spin" /></div>}
         </div>
