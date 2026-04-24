@@ -110,79 +110,62 @@ const CameraScreen = () => {
   }, [step]);
 
   const handleQRSuccess = async (qrData: string) => {
-    if (!user || isScanning) return;
+    // Đã bỏ check "user" để có thể quét offline hoàn toàn
+    if (isScanning) return;
     setIsScanning(true); 
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
 
     try {
       const cleanData = qrData.trim();
       
-      // 1. Tìm trong danh sách app
-      const pillar = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
+      // 1. Tìm thông tin trạm từ mã QR quét được trong MY_PILLARS
+      const cp = MY_PILLARS.find(p => p.qr_code === cleanData || p.id === cleanData);
       
-      if (!pillar) {
-        toast({ title: "Mã QR lạ", description: `Hệ thống không tìm thấy trạm: "${cleanData}"`, variant: "destructive" });
+      if (!cp) {
+        toast({ 
+          title: "Mã QR lạ", 
+          description: `Hệ thống không tìm thấy trạm khớp với chữ: "${cleanData}"`, 
+          variant: "destructive" 
+        });
         setTimeout(() => setIsScanning(false), 3000);
         return;
       }
 
-      // 2. Tìm ID thật trong Database bằng thuật toán Normalize
-      let cp = checkpoints.find(c => normalizeString(c.name) === normalizeString(pillar.name));
+      // 2. Lấy danh sách các trạm ĐÃ QUÉT từ bộ nhớ tạm (localStorage)
+      const unlockedData = localStorage.getItem('jourstic_unlocked');
+      let unlockedList = unlockedData ? JSON.parse(unlockedData) : [];
 
-      // 3. AUTO-INSERT: NẾU DATABASE CHƯA CÓ TRẠM NÀY, TỰ ĐỘNG THÊM VÀO LUÔN!
-      if (!cp) {
-        toast({ title: "Đang tự động khởi tạo...", description: `Đang xây dựng trạm ${pillar.name} lên Database...` });
-        
-        const { data: newCp, error: insertError } = await supabase
-          .from("checkpoints")
-          .insert({
-            name: pillar.name,
-            area: "Khám phá mới", 
-            lat: coords?.lat ?? 21.028511, // Tọa độ thực tế lúc quét hoặc mặc định (Hà Nội)
-            lng: coords?.lng ?? 105.804817,
-            xp_reward: 10
-          })
-          .select()
-          .single();
-
-        if (insertError) throw new Error(`Lỗi tự động tạo trạm: ${insertError.message}`);
-        
-        cp = newCp;
-        setCheckpoints(prev => [...prev, cp]); // Cập nhật lại bộ nhớ ngay lập tức
-      }
-
-      // 4. Kiểm tra lịch sử
-      const { data: existing, error: checkError } = await supabase
-        .from("check_ins").select("id").match({ user_id: user.id, checkpoint_id: cp.id }).maybeSingle();
-
-      if (checkError) throw new Error(`Lỗi kiểm tra lịch sử: ${checkError.message}`);
-
-      if (existing) {
+      // 3. Kiểm tra xem trạm này đã quét bao giờ chưa
+      if (unlockedList.includes(cp.id)) {
         toast({ title: "Đã mở khóa", description: `Bạn đã nhận điểm tại ${cp.name} rồi!` });
         setTimeout(() => { window.location.href = "/"; }, 1500); 
         return;
       }
 
-      // 5. Check-in & Trả điểm
-      const earnedXp = getCheckpointXp(cp) || 10;
+      // 4. CHƯA QUÉT -> Ghi nhận quét thành công vào localStorage
+      unlockedList.push(cp.id);
+      localStorage.setItem('jourstic_unlocked', JSON.stringify(unlockedList));
 
-      const { error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, checkpoint_id: cp.id, photo_url: "QR_UNLOCKED", lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
+      // 5. Cộng XP và lưu offline
+      const currentXp = parseInt(localStorage.getItem('jourstic_xp') || '0', 10);
+      const newXp = currentXp + 10;
+      localStorage.setItem('jourstic_xp', newXp.toString());
+
+      toast({ 
+        title: `🎉 Tuyệt vời! +10 XP`, 
+        description: `Chúc mừng bạn đã mở khóa thành công trạm ${cp.name}.` 
       });
-      if (ciErr) throw new Error(`Lỗi lưu lượt check-in: ${ciErr.message}`);
-
-      const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
-      const { error: xpErr } = await supabase.from("profiles").update({ xp: (prof?.xp || 0) + earnedXp }).eq("user_id", user.id);
-        
-      if (xpErr) throw new Error(`Lỗi cộng XP: ${xpErr.message}`);
-
-      await refreshProfile();
-      toast({ title: `🎉 Tuyệt vời! +${earnedXp} XP`, description: `Đã mở khóa ${cp.name}.` });
       
+      // Búng về trang bản đồ
       setTimeout(() => { window.location.href = "/"; }, 2000);
 
     } catch (err: any) {
-      toast({ title: "Lỗi hệ thống", description: err.message, variant: "destructive" });
+      console.error("Offline Scan Error:", err);
+      toast({ 
+        title: "Lỗi thiết bị", 
+        description: "Không thể xử lý bộ nhớ tạm lúc này.", 
+        variant: "destructive" 
+      });
       setIsScanning(false);
     }
   };
