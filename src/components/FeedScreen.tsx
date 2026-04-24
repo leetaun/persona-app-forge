@@ -11,6 +11,7 @@ const parseCaption = (raw: string | null): { rating: number; text: string } => {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProfile } from "@/hooks/useProfile";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
 import {
@@ -43,6 +44,7 @@ interface FeedPost {
 const FeedScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { addXpOptimistic } = useProfile(); // THÊM DÒNG NÀY
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -146,29 +148,23 @@ const toggleReaction = async (post: FeedPost) => {
       : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
 
     if (error) {
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === post.id
-            ? {
-                ...p,
-                user_reacted: wasReacted,
-                reaction_count: Math.max(0, p.reaction_count + (wasReacted ? 1 : -1)),
-              }
-            : p
-        )
-      );
-
+      // ... (giữ nguyên phần code báo lỗi của bạn) ...
       toast({
         title: "Không cập nhật được huy chương",
         description: error.message,
         variant: "destructive",
       });
-    } else if (!wasReacted) {
-      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi tặng huy chương thành công
-      toast({
-        title: "🎉 Tặng huy chương thành công!",
-        description: "Chúc mừng bạn được cộng +3 XP",
-      });
+    } else {
+      // ĐÃ SỬA CHỖ NÀY: Cộng 3 XP nếu tặng, trừ 3 XP nếu rút lại
+      if (!wasReacted) {
+        addXpOptimistic(3);
+        toast({
+          title: "🎉 Tặng huy chương thành công!",
+          description: "Chúc mừng bạn được cộng +3 XP",
+        });
+      } else {
+        addXpOptimistic(-3);
+      }
     }
   };
 
@@ -197,29 +193,23 @@ const toggleReaction = async (post: FeedPost) => {
       : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "like" });
 
     if (error) {
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === post.id
-            ? {
-                ...p,
-                user_liked: wasLiked,
-                like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)),
-              }
-            : p
-        )
-      );
-
+      // ... (giữ nguyên phần code báo lỗi của bạn) ...
       toast({
         title: "Không cập nhật được lượt tim",
         description: error.message,
         variant: "destructive",
       });
-    } else if (!wasLiked) {
-      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi thả tim thành công
-      toast({
-        title: "❤️ Đã thả tim!",
-        description: "Chúc mừng bạn được cộng +2 XP",
-      });
+    } else {
+      // ĐÃ SỬA CHỖ NÀY: Cộng 2 XP nếu thả tim, trừ 2 XP nếu bỏ tim
+      if (!wasLiked) {
+        addXpOptimistic(2);
+        toast({
+          title: "❤️ Đã thả tim!",
+          description: "Chúc mừng bạn được cộng +2 XP",
+        });
+      } else {
+        addXpOptimistic(-2);
+      }
     }
   };
   
