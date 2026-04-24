@@ -11,7 +11,6 @@ const parseCaption = (raw: string | null): { rating: number; text: string } => {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useProfile } from "@/hooks/useProfile";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
 import {
@@ -44,28 +43,69 @@ interface FeedPost {
 const FeedScreen = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { addXpOptimistic } = useProfile(); // THÊM DÒNG NÀY
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dạy Feed đọc từ bộ nhớ tạm thay vì Supabase
-  const loadPosts = () => {
-    const offlinePosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
-    setPosts(offlinePosts);
-    setLoading(false);
+  const deletePost = async (post: FeedPost) => {
+    if (!user || post.user_id !== user.id) return;
+    const { error } = await supabase.from("posts").delete().eq("id", post.id);
+    if (error) {
+      toast({ title: "Không xoá được bài", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    toast({ title: "Đã gỡ bài viết" });
   };
 
-  useEffect(() => {
-    loadPosts();
-  }, []);
+  const loadPosts = async () => {
+    const { data: rawPosts } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-  // Sửa luôn hàm Xóa bài viết để nó không gọi mạng nữa
-  const deletePost = (post: FeedPost) => {
-    const existingPosts = JSON.parse(localStorage.getItem('jourstic_posts') || '[]');
-    const updatedPosts = existingPosts.filter((p: any) => p.id !== post.id);
-    localStorage.setItem('jourstic_posts', JSON.stringify(updatedPosts));
-    setPosts(updatedPosts);
-    toast({ title: "Đã gỡ bài viết" });
+    if (!rawPosts) {
+      setLoading(false);
+      return;
+    }
+
+    const userIds = [...new Set(rawPosts.map((p) => p.user_id))];
+    const postIds = rawPosts.map((p) => p.id);
+
+    const [{ data: profiles }, { data: reactions }] = await Promise.all([
+      supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", userIds),
+      supabase.from("reactions").select("post_id,user_id,medal").in("post_id", postIds),
+    ]);
+
+    const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
+    const reactionMap = new Map<string, { count: number; mine: boolean }>();
+    const likeMap = new Map<string, { count: number; mine: boolean }>();
+    (reactions || []).forEach((r) => {
+      const target = r.medal === "like" ? likeMap : reactionMap;
+      const cur = target.get(r.post_id) || { count: 0, mine: false };
+      cur.count++;
+      if (r.user_id === user?.id) cur.mine = true;
+      target.set(r.post_id, cur);
+    });
+
+    setPosts(
+      rawPosts.map((p) => {
+        const prof = profileMap.get(p.user_id);
+        const rx = reactionMap.get(p.id) || { count: 0, mine: false };
+        const lk = likeMap.get(p.id) || { count: 0, mine: false };
+        const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
+        return {
+          ...p,
+          display_name: prof?.display_name ?? fallbackName,
+          avatar_url: prof?.avatar_url ?? null,
+          reaction_count: rx.count,
+          user_reacted: rx.mine,
+          like_count: lk.count,
+          user_liked: lk.mine,
+        };
+      })
+    );
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -106,23 +146,29 @@ const toggleReaction = async (post: FeedPost) => {
       : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
 
     if (error) {
-      // ... (giữ nguyên phần code báo lỗi của bạn) ...
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? {
+                ...p,
+                user_reacted: wasReacted,
+                reaction_count: Math.max(0, p.reaction_count + (wasReacted ? 1 : -1)),
+              }
+            : p
+        )
+      );
+
       toast({
         title: "Không cập nhật được huy chương",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      // ĐÃ SỬA CHỖ NÀY: Cộng 3 XP nếu tặng, trừ 3 XP nếu rút lại
-      if (!wasReacted) {
-        addXpOptimistic(3);
-        toast({
-          title: "🎉 Tặng huy chương thành công!",
-          description: "Chúc mừng bạn được cộng +3 XP",
-        });
-      } else {
-        addXpOptimistic(-3);
-      }
+    } else if (!wasReacted) {
+      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi tặng huy chương thành công
+      toast({
+        title: "🎉 Tặng huy chương thành công!",
+        description: "Chúc mừng bạn được cộng +3 XP",
+      });
     }
   };
 
@@ -151,23 +197,29 @@ const toggleReaction = async (post: FeedPost) => {
       : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "like" });
 
     if (error) {
-      // ... (giữ nguyên phần code báo lỗi của bạn) ...
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? {
+                ...p,
+                user_liked: wasLiked,
+                like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)),
+              }
+            : p
+        )
+      );
+
       toast({
         title: "Không cập nhật được lượt tim",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      // ĐÃ SỬA CHỖ NÀY: Cộng 2 XP nếu thả tim, trừ 2 XP nếu bỏ tim
-      if (!wasLiked) {
-        addXpOptimistic(2);
-        toast({
-          title: "❤️ Đã thả tim!",
-          description: "Chúc mừng bạn được cộng +2 XP",
-        });
-      } else {
-        addXpOptimistic(-2);
-      }
+    } else if (!wasLiked) {
+      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi thả tim thành công
+      toast({
+        title: "❤️ Đã thả tim!",
+        description: "Chúc mừng bạn được cộng +2 XP",
+      });
     }
   };
   
