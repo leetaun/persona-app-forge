@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Star, Clock, Landmark, UtensilsCrossed, Palette, BedDouble } from "lucide-react";
 
-export type SuggestionCategory = "culture" | "food" | "art" | "rest";
+// Thêm "pillars" vào type
+export type SuggestionCategory = "culture" | "food" | "art" | "rest" | "pillars";
 
 interface Place {
   id: number;
@@ -203,7 +204,115 @@ const DATA: Record<SuggestionCategory, { title: string; subtitle: string; icon: 
       },
     ],
   },
+  pillars: {
+    title: "Trạm Thám Hiểm",
+    subtitle: "Cột mốc quét mã QR trên bản đồ",
+    icon: MapPin,
+    places: [
+      {
+        id: 1,
+        name: "49 Thanh Niên",
+        area: "Tây Hồ, Hà Nội",
+        description: "Trạm thám hiểm trên đường Thanh Niên ven hồ. Hãy đến gần để quét mã và nhận thử thách.",
+        rating: 4.8,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "🌊",
+      },
+      {
+        id: 2,
+        name: "Quảng Bá",
+        area: "Tây Hồ, Hà Nội",
+        description: "Trạm thám hiểm khu vực Quảng Bá. Hoàn thành nhiệm vụ để nhận ngay XP.",
+        rating: 4.7,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "🌸",
+      },
+      {
+        id: 3,
+        name: "69 Tô Ngọc Vân",
+        area: "Tây Hồ, Hà Nội",
+        description: "Điểm quét QR ẩn giấu tại đường Tô Ngọc Vân. Khám phá không gian đặc trưng nơi đây.",
+        rating: 4.6,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "📍",
+      },
+      {
+        id: 4,
+        name: "Ngõ 3 Quảng Bá",
+        area: "Tây Hồ, Hà Nội",
+        description: "Trạm thám hiểm nằm trong ngõ 3 Quảng Bá. Tìm đúng vị trí để mở khóa cột mốc.",
+        rating: 4.5,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "🗺️",
+      },
+      {
+        id: 5,
+        name: "Ngã 3 Nhật Chiêu",
+        area: "Tây Hồ, Hà Nội",
+        description: "Cột mốc check-in tại Ngã 3 Nhật Chiêu. Quét mã QR để vượt qua thử thách khu vực này.",
+        rating: 4.7,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "⛩️",
+      },
+      {
+        id: 6,
+        name: "Vệ Hồ",
+        area: "Tây Hồ, Hà Nội",
+        description: "Trạm thám hiểm dọc theo đường Vệ Hồ. Cảnh quan mặt nước và không gian thoáng đãng.",
+        rating: 4.8,
+        time: "15-20 phút",
+        tag: "Check-in QR",
+        image: "🌅",
+      },
+      {
+        id: 7,
+        name: "Cột cờ Hà Nội",
+        area: "Ba Đình, Hà Nội",
+        description: "Trạm thám hiểm lịch sử nổi tiếng. Quét mã QR để trả lời câu hỏi về di tích này.",
+        rating: 4.9,
+        time: "15-20 phút",
+        tag: "Check-in QR",
+        image: "🚩",
+      },
+      {
+        id: 8,
+        name: "Đường Độc Lập",
+        area: "Ba Đình, Hà Nội",
+        description: "Cột mốc nằm trên tuyến phố Độc Lập trang nghiêm. Đến gần và sẵn sàng quét mã.",
+        rating: 4.8,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "🏛️",
+      },
+      {
+        id: 9,
+        name: "Đường Phan Đình Phùng",
+        area: "Ba Đình, Hà Nội",
+        description: "Trạm thám hiểm trên con đường rợp bóng cây xanh đẹp nhất thủ đô.",
+        rating: 4.9,
+        time: "15-20 phút",
+        tag: "Check-in QR",
+        image: "🌳",
+      },
+      {
+        id: 10,
+        name: "Kamon Cafe",
+        area: "Ba Đình, Hà Nội",
+        description: "Điểm quét QR ẩn giấu tại quán Cafe có kiến trúc độc đáo. Nhận ngay XP khi hoàn thành.",
+        rating: 4.8,
+        time: "10-15 phút",
+        tag: "Check-in QR",
+        image: "☕",
+      }
+    ],
+  },
 };
+
 
 interface Props {
   category: SuggestionCategory;
