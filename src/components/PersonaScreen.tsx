@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
-import { Landmark, UtensilsCrossed, Palette, BedDouble, ChevronRight } from "lucide-react";
+// Thêm MapPin vào bộ icon
+import { Landmark, UtensilsCrossed, Palette, BedDouble, ChevronRight, MapPin } from "lucide-react";
 
-type PersonaId = "culture" | "food" | "art" | "rest";
+// Thêm "pillars" vào type
+type PersonaId = "culture" | "food" | "art" | "rest" | "pillars";
 
 const personas = [
   {
@@ -39,6 +41,16 @@ const personas = [
     icon: BedDouble,
     gradient: "from-emerald-500 to-teal-600",
     bgClass: "bg-xp/5",
+  },
+  // DANH MỤC MỚI THÊM VÀO ĐÂY:
+  {
+    id: "pillars" as PersonaId,
+    title: "Trạm Thám Hiểm",
+    subtitle: "Cột mốc quét mã QR",
+    description: "Danh sách các trạm thám hiểm bạn cần tìm và quét mã trên bản đồ 3D",
+    icon: MapPin,
+    gradient: "from-blue-500 to-indigo-600",
+    bgClass: "bg-blue-500/5",
   },
 ];
 
