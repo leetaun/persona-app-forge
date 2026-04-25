@@ -233,13 +233,31 @@ const CameraScreen = () => {
       
       const earnedXp = getCalculatedXp(selected.area);
 
+      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
+      const validId = selected.id === "TUONG_DAI_LE_NIN" 
+        ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
+        : selected.id;
+
       const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, checkpoint_id: selected.id, photo_url: pub.publicUrl, lat: coords?.lat ?? null, lng: coords?.lng ?? null, xp_earned: earnedXp,
+        user_id: user.id, 
+        checkpoint_id: validId, // Vứt cái ID mượn này cho Supabase để nó cho qua
+        photo_url: pub.publicUrl, 
+        lat: coords?.lat ?? null, 
+        lng: coords?.lng ?? null, 
+        xp_earned: earnedXp,
       }).select().single();
       if (ciErr) throw ciErr;
 
       const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
-      await supabase.from("posts").insert({ user_id: user.id, check_in_id: checkIn.id, photo_url: pub.publicUrl, caption: fullCaption || null, location_name: selected.name });
+      
+      // 🚀 NHƯNG KHI ĐĂNG BÀI, VẪN DÙNG TÊN THẬT!
+      await supabase.from("posts").insert({ 
+        user_id: user.id, 
+        check_in_id: checkIn.id, 
+        photo_url: pub.publicUrl, 
+        caption: fullCaption || null, 
+        location_name: selected.name // Chỗ này vẫn lấy chữ "Tượng đài Lê Nin"
+      });
 
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
@@ -254,10 +272,27 @@ const CameraScreen = () => {
   };
 
   // 🚀 LỌC & NHÓM DANH SÁCH ĐỊA ĐIỂM CHUẨN
-  // Loại bỏ các Trạm QR (MY_PILLARS) khỏi danh sách để chọn ảnh check-in cho gọn
-  const checkinLocations = checkpoints.filter(
+  // 1. Loại bỏ các Trạm QR (MY_PILLARS) khỏi danh sách Database cho gọn
+  const fetchedLocations = checkpoints.filter(
     (c) => !MY_PILLARS.some((p) => p.name === c.name)
   );
+  
+  // 2. Tự chèn thêm các địa điểm bạn muốn (Ghim cứng vào code)
+  const hardcodedLocations: Checkpoint[] = [
+    { 
+      id: "TUONG_DAI_LE_NIN", 
+      name: "Tượng đài Lê Nin", 
+      area: "Nghệ thuật", 
+      lat: 21.031718, 
+      lng: 105.839538, 
+      xp_reward: 80 
+    }
+    // Nếu bạn nhớ ra các địa điểm cũ bị mất, bạn có thể copy block trên 
+    // và dán tiếp xuống dưới này nhé!
+  ];
+
+  // 3. Gộp chung cả 2 danh sách lại để hiển thị ra màn hình
+  const checkinLocations = [...fetchedLocations, ...hardcodedLocations];
   
   // Nhóm lại theo Area (Văn hóa - Tâm linh, Ẩm thực...)
   const grouped = checkinLocations.reduce<Record<string, Checkpoint[]>>((acc, c) => { 
@@ -337,7 +372,8 @@ const CameraScreen = () => {
           <select 
             value={selected?.id ?? ""} 
             onChange={(e) => { 
-              setSelected(checkpoints.find((c) => c.id === e.target.value) ?? null); 
+              // 👇 Sửa chữ checkpoints thành checkinLocations ở dòng dưới này:
+              setSelected(checkinLocations.find((c) => c.id === e.target.value) ?? null); 
               setCaption(""); 
             }} 
             className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
