@@ -38,13 +38,13 @@ const MY_PILLARS = [
   { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
 ];
 
-// 🚀 HÀM TÍNH ĐIỂM CHUẨN MỚI DỰA THEO TÊN NHÓM
 const getCalculatedXp = (area: string | null) => {
   if (area === "Văn hóa - Tâm linh") return 100;
   if (area === "Nghệ thuật") return 80;
   if (area === "Nghỉ ngơi") return 50;
   if (area === "Ẩm thực") return 20;
-  return 10; // Điểm mặc định nếu không thuộc nhóm nào
+  if (area === "Trạm thám hiểm") return 10; // THÊM DÒNG NÀY
+  return 5; // Điểm mặc định nếu không thuộc nhóm nào
 };
 
 type Step = "camera" | "preview" | "form";
@@ -234,7 +234,9 @@ const CameraScreen = () => {
       const earnedXp = getCalculatedXp(selected.area);
 
       // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
-      const validId = selected.id === "TUONG_DAI_LE_NIN" 
+      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin HOẶC các Trạm thám hiểm, mượn tạm ID hợp lệ
+      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || MY_PILLARS.some(p => p.id === selected.id);
+      const validId = isHardcoded 
         ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
         : selected.id;
 
@@ -278,6 +280,7 @@ const CameraScreen = () => {
   );
   
   // 2. Tự chèn thêm các địa điểm bạn muốn (Ghim cứng vào code)
+  // 2. Tự chèn thêm các địa điểm bạn muốn (Ghim cứng vào code)
   const hardcodedLocations: Checkpoint[] = [
     { 
       id: "TUONG_DAI_LE_NIN", 
@@ -286,9 +289,16 @@ const CameraScreen = () => {
       lat: 21.031718, 
       lng: 105.839538, 
       xp_reward: 80 
-    }
-    // Nếu bạn nhớ ra các địa điểm cũ bị mất, bạn có thể copy block trên 
-    // và dán tiếp xuống dưới này nhé!
+    },
+    // 👇 Tự động nhúng toàn bộ 10 trạm từ MY_PILLARS sang nhóm Trạm thám hiểm
+    ...MY_PILLARS.map(p => ({
+      id: p.id,
+      name: p.name,
+      area: "Trạm thám hiểm",
+      lat: 0,
+      lng: 0,
+      xp_reward: 10
+    }))
   ];
 
   // 3. Gộp chung cả 2 danh sách lại để hiển thị ra màn hình
