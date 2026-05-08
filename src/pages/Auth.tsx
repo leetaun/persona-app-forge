@@ -27,14 +27,15 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/verify`,
+            emailRedirectTo: `${window.location.origin}/`,
           },
         });
         if (error) throw error;
         toast({
           title: "Đăng ký thành công! 🎉",
-          description: "Kiểm tra email để xác nhận tài khoản nhé.",
+          description: "Bạn có thể đăng nhập ngay bây giờ.",
         });
+        setIsLogin(true);
       }
     } catch (error: any) {
       toast({
