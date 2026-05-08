@@ -23,7 +23,13 @@ const Auth = () => {
         if (error) throw error;
         toast({ title: "Đăng nhập thành công! 🎉" });
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/verify`,
+          },
+        });
         if (error) throw error;
         toast({
           title: "Đăng ký thành công! 🎉",
