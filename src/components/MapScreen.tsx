@@ -21,9 +21,10 @@ interface Checkpoint {
   xp_reward: number;
   is_hot: boolean;
   qr_code?: string;
+  always_unlocked?: boolean; // Khu vực mở tự do, không cần quét QR
 }
 
-type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang";
+type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang" | "dh_kien_truc";
 
 interface AreaDef {
   key: AreaKey;
@@ -39,6 +40,7 @@ const AREAS: AreaDef[] = [
   { key: "hoan_kiem", name: "Hoàn Kiếm", center: [105.8521, 21.0250], radiusKm: 0.7, zoom: 15 },
   { key: "ba_dinh", name: "Ba Đình", center: [105.8388, 21.0395], radiusKm: 1.3, zoom: 14.5 },
   { key: "bat_trang", name: "Bát Tràng", center: [105.9123, 20.9757], radiusKm: 1.0, zoom: 15 },
+  { key: "dh_kien_truc" as AreaKey, name: "ĐH Kiến trúc HN", center: [105.7894, 20.9805], radiusKm: 0.6, zoom: 15 },
 ];
 
 const HANOI_CENTER: [number, number] = [105.84, 21.0335];
@@ -56,7 +58,8 @@ const MY_PILLARS: Checkpoint[] = [
   { id: "COT_CO_HA_NOI", name: "Cột cờ Hà Nội", lat: 21.0335, lng: 105.8430, xp_reward: 10, is_hot: true, area: "Ba Đình", qr_code: "COT_CO_HA_NOI", description: "Biểu tượng lịch sử", poem: "Đất thiêng nâng bước chân,\nTrời cao giữ hồn dân.\nTheo nơi cờ đỏ gọi,\nChạm tới một phần 'thần'."},
   { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", lat: 21.0360, lng: 105.8347, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "DUONG_DOC_LAP", description: "Con đường lịch sử", poem: "Đi theo màu nắng cũ,\nMột lối rợp bóng xanh.\nNơi tên đường rất ngắn,\nMà đánh đổi thật dài." },
   { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", lat: 21.0400, lng: 105.8400, xp_reward: 10, is_hot: true, area: "Ba Đình", qr_code: "DUONG_PHAN_DINH_PHUNG", description: "Con đường rợp bóng cây", poem: "Lá xanh che nắng phố,\nGió kể chuyện rất xưa.\nĐi giữa hàng cổ thụ,\nBí mật giấu trong mùa." },
-  { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "KAMON_CAFE", description: "Cafe check-in đẹp", poem: undefined }
+  { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "KAMON_CAFE", description: "Cafe check-in đẹp", poem: undefined },
+  { id: "DH_KIEN_TRUC_HN", name: "Trường Đại học Kiến trúc Hà Nội", lat: 20.9805, lng: 105.7894, xp_reward: 30, is_hot: false, area: "Trường học", description: "Khu vực mở tự do - không cần quét QR", poem: undefined, always_unlocked: true }
 ];
 
 function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
@@ -150,9 +153,13 @@ const MapScreen = () => {
 
     checkpoints.forEach((cp) => {
       const completed = unlockedIds.has(cp.name);
+      const isOpen = cp.always_unlocked;
       const el = document.createElement("div");
-      el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)"};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
-      el.innerHTML = completed
+      const bg = isOpen ? "hsl(217 91% 55%)" : completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)";
+      el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${bg};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
+      el.innerHTML = isOpen
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 7-8 13-8 13s-8-6-8-13a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>`
+        : completed
         ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
         : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
@@ -162,7 +169,7 @@ const MapScreen = () => {
           <p style="font-weight:800; font-size:16px; margin:0 0 6px; color:#0f172a;">${cp.name}</p>
           ${cp.poem ? `<div style="background:#f0fdf4; border-left:3px solid #16a34a; padding:8px; margin:8px 0; border-radius:6px;"><p style="color:#166534; margin:0; white-space:pre-line; font-style:italic; line-height:1.5;">${cp.poem}</p></div>` : ""}
           ${cp.description ? `<p style="color:#475569; margin:4px 0; line-height:1.4;">${cp.description}</p>` : ""}
-          ${completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
+          ${isOpen ? `<p style="color:#2563eb; font-weight:bold; margin:10px 0 0; font-size:13px;">📍 Khu vực mở tự do · +${cp.xp_reward} XP khi check-in</p>` : completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
         </div>`
       );
 

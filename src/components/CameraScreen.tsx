@@ -42,9 +42,10 @@ const getCalculatedXp = (area: string | null) => {
   if (area === "Văn hóa - Tâm linh") return 100;
   if (area === "Nghệ thuật") return 80;
   if (area === "Nghỉ ngơi") return 50;
+  if (area === "Trường học") return 30;
   if (area === "Ẩm thực") return 20;
-  if (area === "Trạm thám hiểm") return 10; // THÊM DÒNG NÀY
-  return 5; // Điểm mặc định nếu không thuộc nhóm nào
+  if (area === "Trạm thám hiểm") return 10;
+  return 5;
 };
 
 type Step = "camera" | "preview" | "form";
@@ -235,7 +236,7 @@ const CameraScreen = () => {
 
       // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
       // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin HOẶC các Trạm thám hiểm, mượn tạm ID hợp lệ
-      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || MY_PILLARS.some(p => p.id === selected.id);
+      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || selected.id === "DH_KIEN_TRUC_HN" || MY_PILLARS.some(p => p.id === selected.id);
       const validId = isHardcoded 
         ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
         : selected.id;
@@ -289,6 +290,14 @@ const CameraScreen = () => {
       lat: 21.031718, 
       lng: 105.839538, 
       xp_reward: 80 
+    },
+    {
+      id: "DH_KIEN_TRUC_HN",
+      name: "Trường Đại học Kiến trúc Hà Nội",
+      area: "Trường học",
+      lat: 20.9805,
+      lng: 105.7894,
+      xp_reward: 30,
     },
     // 👇 Tự động nhúng toàn bộ 10 trạm từ MY_PILLARS sang nhóm Trạm thám hiểm
     ...MY_PILLARS.map(p => ({
