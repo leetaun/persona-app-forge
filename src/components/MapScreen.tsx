@@ -24,7 +24,7 @@ interface Checkpoint {
   always_unlocked?: boolean; // Khu vực mở tự do, không cần quét QR
 }
 
-type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang";
+type AreaKey = "ho_tay" | "hoan_kiem" | "ba_dinh" | "bat_trang" | "dh_kien_truc";
 
 interface AreaDef {
   key: AreaKey;
