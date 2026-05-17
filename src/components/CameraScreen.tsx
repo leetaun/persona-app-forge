@@ -236,7 +236,7 @@ const CameraScreen = () => {
 
       // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
       // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin HOẶC các Trạm thám hiểm, mượn tạm ID hợp lệ
-      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || MY_PILLARS.some(p => p.id === selected.id);
+      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || selected.id === "DH_KIEN_TRUC_HN" || MY_PILLARS.some(p => p.id === selected.id);
       const validId = isHardcoded 
         ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
         : selected.id;
