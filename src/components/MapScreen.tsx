@@ -154,6 +154,7 @@ const MapScreen = () => {
     checkpoints.forEach((cp) => {
       const completed = unlockedIds.has(cp.name);
       const isOpen = cp.always_unlocked;
+      const el = document.createElement("div");
       const bg = isOpen ? "hsl(217 91% 55%)" : completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)";
       el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${bg};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
       el.innerHTML = isOpen
