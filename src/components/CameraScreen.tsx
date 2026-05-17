@@ -42,9 +42,10 @@ const getCalculatedXp = (area: string | null) => {
   if (area === "Văn hóa - Tâm linh") return 100;
   if (area === "Nghệ thuật") return 80;
   if (area === "Nghỉ ngơi") return 50;
+  if (area === "Trường học") return 30;
   if (area === "Ẩm thực") return 20;
-  if (area === "Trạm thám hiểm") return 10; // THÊM DÒNG NÀY
-  return 5; // Điểm mặc định nếu không thuộc nhóm nào
+  if (area === "Trạm thám hiểm") return 10;
+  return 5;
 };
 
 type Step = "camera" | "preview" | "form";
