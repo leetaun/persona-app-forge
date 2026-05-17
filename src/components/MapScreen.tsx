@@ -169,7 +169,7 @@ const MapScreen = () => {
           <p style="font-weight:800; font-size:16px; margin:0 0 6px; color:#0f172a;">${cp.name}</p>
           ${cp.poem ? `<div style="background:#f0fdf4; border-left:3px solid #16a34a; padding:8px; margin:8px 0; border-radius:6px;"><p style="color:#166534; margin:0; white-space:pre-line; font-style:italic; line-height:1.5;">${cp.poem}</p></div>` : ""}
           ${cp.description ? `<p style="color:#475569; margin:4px 0; line-height:1.4;">${cp.description}</p>` : ""}
-          ${completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
+          ${isOpen ? `<p style="color:#2563eb; font-weight:bold; margin:10px 0 0; font-size:13px;">📍 Khu vực mở tự do · +${cp.xp_reward} XP khi check-in</p>` : completed ? `<p style="color:#059669; font-weight:bold; margin:10px 0 0; font-size:13px;">✓ Đã khám phá</p>` : `<p style="color:#64748b; font-weight:bold; margin:10px 0 0; font-size:13px;">🔒 Quét QR nhận +${cp.xp_reward} XP</p>`}
         </div>`
       );
 
