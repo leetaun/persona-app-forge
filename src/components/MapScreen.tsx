@@ -153,9 +153,12 @@ const MapScreen = () => {
 
     checkpoints.forEach((cp) => {
       const completed = unlockedIds.has(cp.name);
-      const el = document.createElement("div");
-      el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)"};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
-      el.innerHTML = completed
+      const isOpen = cp.always_unlocked;
+      const bg = isOpen ? "hsl(217 91% 55%)" : completed ? "hsl(152 55% 42%)" : "hsl(220 9% 30%)";
+      el.style.cssText = `width:36px;height:36px;border-radius:9999px;background:${bg};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;${cp.is_hot && completed ? "animation:pulseGlow 1.6s ease-in-out infinite;" : ""}`;
+      el.innerHTML = isOpen
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 7-8 13-8 13s-8-6-8-13a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>`
+        : completed
         ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
         : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
