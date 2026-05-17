@@ -40,6 +40,7 @@ const AREAS: AreaDef[] = [
   { key: "hoan_kiem", name: "Hoàn Kiếm", center: [105.8521, 21.0250], radiusKm: 0.7, zoom: 15 },
   { key: "ba_dinh", name: "Ba Đình", center: [105.8388, 21.0395], radiusKm: 1.3, zoom: 14.5 },
   { key: "bat_trang", name: "Bát Tràng", center: [105.9123, 20.9757], radiusKm: 1.0, zoom: 15 },
+  { key: "dh_kien_truc" as AreaKey, name: "ĐH Kiến trúc HN", center: [105.7894, 20.9805], radiusKm: 0.6, zoom: 15 },
 ];
 
 const HANOI_CENTER: [number, number] = [105.84, 21.0335];
