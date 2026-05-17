@@ -58,7 +58,8 @@ const MY_PILLARS: Checkpoint[] = [
   { id: "COT_CO_HA_NOI", name: "Cột cờ Hà Nội", lat: 21.0335, lng: 105.8430, xp_reward: 10, is_hot: true, area: "Ba Đình", qr_code: "COT_CO_HA_NOI", description: "Biểu tượng lịch sử", poem: "Đất thiêng nâng bước chân,\nTrời cao giữ hồn dân.\nTheo nơi cờ đỏ gọi,\nChạm tới một phần 'thần'."},
   { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", lat: 21.0360, lng: 105.8347, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "DUONG_DOC_LAP", description: "Con đường lịch sử", poem: "Đi theo màu nắng cũ,\nMột lối rợp bóng xanh.\nNơi tên đường rất ngắn,\nMà đánh đổi thật dài." },
   { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", lat: 21.0400, lng: 105.8400, xp_reward: 10, is_hot: true, area: "Ba Đình", qr_code: "DUONG_PHAN_DINH_PHUNG", description: "Con đường rợp bóng cây", poem: "Lá xanh che nắng phố,\nGió kể chuyện rất xưa.\nĐi giữa hàng cổ thụ,\nBí mật giấu trong mùa." },
-  { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "KAMON_CAFE", description: "Cafe check-in đẹp", poem: undefined }
+  { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "KAMON_CAFE", description: "Cafe check-in đẹp", poem: undefined },
+  { id: "DH_KIEN_TRUC_HN", name: "Trường Đại học Kiến trúc Hà Nội", lat: 20.9805, lng: 105.7894, xp_reward: 30, is_hot: false, area: "Trường học", description: "Khu vực mở tự do - không cần quét QR", poem: undefined, always_unlocked: true }
 ];
 
 function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
