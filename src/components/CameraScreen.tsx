@@ -291,6 +291,14 @@ const CameraScreen = () => {
       lng: 105.839538, 
       xp_reward: 80 
     },
+    {
+      id: "DH_KIEN_TRUC_HN",
+      name: "Trường Đại học Kiến trúc Hà Nội",
+      area: "Trường học",
+      lat: 20.9805,
+      lng: 105.7894,
+      xp_reward: 30,
+    },
     // 👇 Tự động nhúng toàn bộ 10 trạm từ MY_PILLARS sang nhóm Trạm thám hiểm
     ...MY_PILLARS.map(p => ({
       id: p.id,
