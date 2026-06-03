@@ -35,7 +35,9 @@ const MY_PILLARS = [
   { id: "COT_CO_HA_NOI", name: "Cột cờ Hà Nội", qr_code: "COT_CO_HA_NOI" },
   { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", qr_code: "DUONG_DOC_LAP" },
   { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", qr_code: "DUONG_PHAN_DINH_PHUNG" },
-  { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" }
+  { id: "KAMON_CAFE", name: "Kamon Cafe", qr_code: "KAMON_CAFE" },
+
+  { id: "GYM_THANH_CONG", name: "Gym thành công", qr_code: "JOURSTIC_GYM_TC_01" },
 ];
 
 const getCalculatedXp = (area: string | null) => {
