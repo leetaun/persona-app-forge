@@ -41,6 +41,8 @@ const AREAS: AreaDef[] = [
   { key: "ba_dinh", name: "Ba Đình", center: [105.8388, 21.0395], radiusKm: 1.3, zoom: 14.5 },
   { key: "bat_trang", name: "Bát Tràng", center: [105.9123, 20.9757], radiusKm: 1.0, zoom: 15 },
   { key: "dh_kien_truc" as AreaKey, name: "ĐH Kiến trúc HN", center: [105.7894, 20.9805], radiusKm: 0.6, zoom: 15 },
+
+  { key: "gym_thanh_cong" as AreaKey, name: "ĐH Kiến trúc HN", center: [105.8145, 21.0235], radiusKm: 0.6, zoom: 15 },
 ];
 
 const HANOI_CENTER: [number, number] = [105.84, 21.0335];
@@ -59,7 +61,10 @@ const MY_PILLARS: Checkpoint[] = [
   { id: "DUONG_DOC_LAP", name: "Đường Độc Lập", lat: 21.0360, lng: 105.8347, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "DUONG_DOC_LAP", description: "Con đường lịch sử", poem: "Đi theo màu nắng cũ,\nMột lối rợp bóng xanh.\nNơi tên đường rất ngắn,\nMà đánh đổi thật dài." },
   { id: "DUONG_PHAN_DINH_PHUNG", name: "Đường Phan Đình Phùng", lat: 21.0400, lng: 105.8400, xp_reward: 10, is_hot: true, area: "Ba Đình", qr_code: "DUONG_PHAN_DINH_PHUNG", description: "Con đường rợp bóng cây", poem: "Lá xanh che nắng phố,\nGió kể chuyện rất xưa.\nĐi giữa hàng cổ thụ,\nBí mật giấu trong mùa." },
   { id: "KAMON_CAFE", name: "Kamon Cafe", lat: 21.0425, lng: 105.8380, xp_reward: 10, is_hot: false, area: "Ba Đình", qr_code: "KAMON_CAFE", description: "Cafe check-in đẹp", poem: undefined },
-  { id: "DH_KIEN_TRUC_HN", name: "Trường Đại học Kiến trúc Hà Nội", lat: 20.9805, lng: 105.7894, xp_reward: 30, is_hot: false, area: "Trường học", description: "Khu vực mở tự do - không cần quét QR", poem: undefined, always_unlocked: true }
+  { id: "DH_KIEN_TRUC_HN", name: "Trường Đại học Kiến trúc Hà Nội", lat: 20.9805, lng: 105.7894, xp_reward: 30, is_hot: false, area: "Trường học", description: "Khu vực mở tự do - không cần quét QR", poem: undefined, always_unlocked: true },
+
+  
+  { id: "GYM_THANH_CONG", name: "Gym thành công", lat: 21.0235, lng: 105.8145, xp_reward: 30, is_hot: false, area: "Trường học", qr_code: "JOURSTIC_GYM_TC_01", description: "cút", poem: undefined}
 ];
 
 function circleRing(center: [number, number], radiusKm: number, points = 64): [number, number][] {
