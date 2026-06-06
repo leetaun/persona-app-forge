@@ -518,11 +518,41 @@ const CameraScreen = () => {
         {mode === "photo" && (
           <div className="absolute bottom-28 left-0 right-0 z-10 flex flex-col items-center gap-4 px-4">
             <div className="flex items-center gap-6">
-              <label className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card"><ImageIcon className="w-5 h-5 text-foreground" /><input type="file" accept="image/*" onChange={onFileUpload} className="hidden" /></label>
-              <button onClick={capture} disabled={!cameraReady} className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-2xl active:scale-95 transition disabled:opacity-50"><div className="w-full h-full rounded-full border-2 border-primary/40" /></button>
+              <label className={`w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card transition ${isRecording ? "opacity-30 pointer-events-none" : ""}`}>
+                <ImageIcon className="w-5 h-5 text-foreground" />
+                <input type="file" accept="image/*,video/*" onChange={onFileUpload} className="hidden" />
+              </label>
+              <button
+                onPointerDown={onShutterPointerDown}
+                onPointerUp={onShutterPointerUp}
+                onPointerLeave={onShutterPointerUp}
+                onPointerCancel={onShutterPointerUp}
+                onContextMenu={(e) => e.preventDefault()}
+                disabled={!cameraReady}
+                className="relative w-20 h-20 rounded-full bg-white shadow-2xl active:scale-95 transition disabled:opacity-50 touch-none select-none"
+                style={{ WebkitUserSelect: "none" }}
+              >
+                {/* Progress ring */}
+                <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--primary) / 0.25)" strokeWidth="6" />
+                  <circle
+                    cx="50" cy="50" r="46" fill="none"
+                    stroke={isRecording ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+                    strokeWidth="6" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 46}
+                    strokeDashoffset={2 * Math.PI * 46 * (1 - (isRecording ? recordProgress : 1))}
+                    style={{ transition: isRecording ? "none" : "stroke-dashoffset 0.2s" }}
+                  />
+                </svg>
+                <div className={`absolute inset-2 rounded-full flex items-center justify-center ${isRecording ? "bg-destructive" : "bg-white"}`}>
+                  {isRecording && <div className="w-5 h-5 rounded-sm bg-white" />}
+                </div>
+              </button>
               <div className="w-12 h-12" />
             </div>
-            <p className="text-white/80 text-xs font-medium">Chụp ảnh để đăng Bảng tin</p>
+            <p className="text-white/80 text-xs font-medium">
+              {isRecording ? `Đang quay... ${Math.ceil((1 - recordProgress) * 15)}s` : "Chạm để chụp · Giữ để quay video (tối đa 15s)"}
+            </p>
           </div>
         )}
       </div>
