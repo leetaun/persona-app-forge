@@ -562,9 +562,15 @@ const CameraScreen = () => {
   if (step === "preview") {
     return (
       <div className="h-full relative bg-black flex flex-col overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">{photoPreview && <img src={photoPreview} alt="preview" className="w-full h-full object-contain" />}</div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          {mediaPreview && mediaType === "video" ? (
+            <video src={mediaPreview} controls autoPlay loop playsInline className="w-full h-full object-contain" />
+          ) : mediaPreview ? (
+            <img src={mediaPreview} alt="preview" className="w-full h-full object-contain" />
+          ) : null}
+        </div>
         <div className="absolute top-12 left-4 right-4 z-10 flex justify-between"><button onClick={resetAll} className="w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><X className="w-5 h-5" /></button></div>
-        <div className="absolute bottom-28 left-4 right-4 z-10 flex gap-3"><button onClick={resetAll} className="flex-1 bg-card/90 backdrop-blur text-foreground rounded-2xl py-3.5 font-semibold">Chụp lại</button><button onClick={() => setStep("form")} className="flex-[2] bg-primary text-primary-foreground rounded-2xl py-3.5 font-semibold flex items-center justify-center gap-2 shadow-lg">Tiếp tục <Send className="w-4 h-4" /></button></div>
+        <div className="absolute bottom-28 left-4 right-4 z-10 flex gap-3"><button onClick={resetAll} className="flex-1 bg-card/90 backdrop-blur text-foreground rounded-2xl py-3.5 font-semibold">Quay lại</button><button onClick={() => setStep("form")} className="flex-[2] bg-primary text-primary-foreground rounded-2xl py-3.5 font-semibold flex items-center justify-center gap-2 shadow-lg">Tiếp tục <Send className="w-4 h-4" /></button></div>
       </div>
     );
   }
@@ -573,39 +579,90 @@ const CameraScreen = () => {
     <div className="h-full overflow-y-auto bg-background pb-32">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-12 pb-3 flex items-center gap-3"><button onClick={() => setStep("preview")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button><h1 className="text-lg font-bold text-foreground">Đánh giá check-in</h1></div>
       <div className="px-4 pt-4 space-y-5">
-        {photoPreview && <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-muted"><img src={photoPreview} alt="" className="w-full h-full object-cover" /></div>}
-        
-        {/* 🚀 FORM CHỌN ĐỊA ĐIỂM CHUẨN: CHIA NHÓM VÀ CẬP NHẬT ĐIỂM */}
+        {mediaPreview && (
+          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-muted">
+            {mediaType === "video" ? (
+              <video src={mediaPreview} controls loop muted playsInline className="w-full h-full object-cover" />
+            ) : (
+              <img src={mediaPreview} alt="" className="w-full h-full object-cover" />
+            )}
+          </div>
+        )}
+
+        {/* 🚀 CHỌN ĐỊA ĐIỂM: TAB Vị trí hiện tại / Danh sách */}
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Địa điểm</label>
-          <select 
-            value={selected?.id ?? ""} 
-            onChange={(e) => { 
-              // 👇 Sửa chữ checkpoints thành checkinLocations ở dòng dưới này:
-              setSelected(checkinLocations.find((c) => c.id === e.target.value) ?? null); 
-              setCaption(""); 
-            }} 
-            className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
-          >
-            <option value="">📍 Chọn địa điểm...</option>
-            {Object.entries(grouped).map(([area, list]) => (
-              <optgroup key={area} label={area}>
-                {list.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (+{getCalculatedXp(c.area)} XP)
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {selected && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              <span>{selected.area}</span>
-              <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-                +{getCalculatedXp(selected.area)} XP
-              </span>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Địa điểm check-in</label>
+          <div className="bg-muted/60 rounded-2xl p-1 flex gap-1 mb-3">
+            <button
+              onClick={() => { setLocationTab("current"); setSelected(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${locationTab === "current" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <Navigation className="w-3.5 h-3.5" /> Vị trí hiện tại
+            </button>
+            <button
+              onClick={() => { setLocationTab("list"); setSelected(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${locationTab === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <List className="w-3.5 h-3.5" /> Danh sách
+            </button>
+          </div>
+
+          {locationTab === "current" ? (
+            <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+              {currentLocLabel ? (
+                <>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-foreground flex-1 break-words">{currentLocLabel}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Check-in tự do</span>
+                    <span className="bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-full text-xs">+50 XP</span>
+                  </div>
+                  <button onClick={useCurrentLocation} disabled={fetchingLoc} className="w-full text-xs text-primary font-semibold py-1.5">Cập nhật lại vị trí</button>
+                </>
+              ) : (
+                <button
+                  onClick={useCurrentLocation}
+                  disabled={fetchingLoc}
+                  className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary font-bold rounded-xl py-3 text-sm disabled:opacity-50"
+                >
+                  {fetchingLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                  {fetchingLoc ? "Đang lấy vị trí..." : "Lấy vị trí hiện tại (+50 XP)"}
+                </button>
+              )}
             </div>
+          ) : (
+            <>
+              <select 
+                value={selected && selected.id !== "CURRENT_LOCATION" ? selected.id : ""} 
+                onChange={(e) => { 
+                  setSelected(checkinLocations.find((c) => c.id === e.target.value) ?? null); 
+                  setCaption(""); 
+                }} 
+                className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
+              >
+                <option value="">📍 Chọn địa điểm...</option>
+                {Object.entries(grouped).map(([area, list]) => (
+                  <optgroup key={area} label={area}>
+                    {list.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} (+{getCalculatedXp(c.area)} XP)
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {selected && selected.id !== "CURRENT_LOCATION" && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  <span>{selected.area}</span>
+                  <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                    +{getCalculatedXp(selected.area)} XP
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
 
