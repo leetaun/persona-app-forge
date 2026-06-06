@@ -242,55 +242,185 @@ const CameraScreen = () => {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => { if (blob) { setPhotoBlob(blob); setPhotoPreview(URL.createObjectURL(blob)); setStep("preview"); } }, "image/jpeg", 0.9);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        setMediaBlob(blob);
+        setMediaPreview(URL.createObjectURL(blob));
+        setMediaType("image");
+        setStep("preview");
+      }
+    }, "image/jpeg", 0.9);
+  };
+
+  const pickVideoMime = () => {
+    const types = ["video/mp4;codecs=h264,aac", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    for (const t of types) if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
+    return "";
+  };
+
+  const startRecording = () => {
+    const stream = streamRef.current;
+    if (!stream || isRecording) return;
+    stream.getAudioTracks().forEach((t) => (t.enabled = true));
+    chunksRef.current = [];
+    const mime = pickVideoMime();
+    let rec: MediaRecorder;
+    try {
+      rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch {
+      toast({ title: "Trình duyệt không hỗ trợ quay video", variant: "destructive" });
+      return;
+    }
+    recorderRef.current = rec;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || "video/webm" });
+      stream.getAudioTracks().forEach((t) => (t.enabled = false));
+      if (blob.size > 0) {
+        setMediaBlob(blob);
+        setMediaPreview(URL.createObjectURL(blob));
+        setMediaType("video");
+        setStep("preview");
+      }
+    };
+    rec.start(100);
+    recordStartRef.current = performance.now();
+    setIsRecording(true);
+    setRecordProgress(0);
+    const tick = () => {
+      const elapsed = performance.now() - recordStartRef.current;
+      setRecordProgress(Math.min(1, elapsed / MAX_RECORD_MS));
+      if (elapsed < MAX_RECORD_MS && recorderRef.current?.state === "recording") {
+        progressRafRef.current = requestAnimationFrame(tick);
+      }
+    };
+    progressRafRef.current = requestAnimationFrame(tick);
+    recordTimeoutRef.current = window.setTimeout(stopRecording, MAX_RECORD_MS);
+  };
+
+  const stopRecording = () => {
+    if (recordTimeoutRef.current) { clearTimeout(recordTimeoutRef.current); recordTimeoutRef.current = null; }
+    if (progressRafRef.current) cancelAnimationFrame(progressRafRef.current);
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    setIsRecording(false);
+    setRecordProgress(0);
+  };
+
+  const onShutterPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (!cameraReady) return;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      startRecording();
+    }, 280);
+  };
+
+  const onShutterPointerUp = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      capture();
+      return;
+    }
+    if (isRecording) stopRecording();
   };
 
   const onFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoBlob(file); setPhotoPreview(URL.createObjectURL(file)); setStep("preview");
+    const isVideo = file.type.startsWith("video/");
+    setMediaBlob(file);
+    setMediaPreview(URL.createObjectURL(file));
+    setMediaType(isVideo ? "video" : "image");
+    setStep("preview");
   };
 
-  const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
+  const resetAll = () => {
+    setMediaBlob(null);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(null);
+    setMediaType("image");
+    setCaption(""); setRating(0); setSelected(null);
+    setLocationTab("current"); setCurrentLocLabel(null);
+    setStep("camera");
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "Trình duyệt không hỗ trợ định vị", variant: "destructive" });
+      return;
+    }
+    setFetchingLoc(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
+        let label = `Vị trí hiện tại của tôi (Tọa độ: ${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { "Accept-Language": "vi" } });
+          if (r.ok) {
+            const j = await r.json();
+            if (j?.display_name) label = j.display_name;
+          }
+        } catch {}
+        setCurrentLocLabel(label);
+        setSelected({ id: "CURRENT_LOCATION", name: label, area: "Vị trí hiện tại", lat, lng, xp_reward: 50 });
+        setFetchingLoc(false);
+      },
+      () => {
+        setFetchingLoc(false);
+        toast({ title: "Không lấy được vị trí", description: "Vui lòng cấp quyền định vị.", variant: "destructive" });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const submitCheckin = async () => {
-    if (!user || !photoBlob || !selected) return;
+    if (!user || !mediaBlob || !selected) return;
     setSubmitting(true);
     try {
-      const path = `${user.id}/${Date.now()}.jpg`;
-      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
+      const isVideo = mediaType === "video";
+      const ext = isVideo ? (mediaBlob.type.includes("mp4") ? "mp4" : "webm") : "jpg";
+      const contentType = isVideo ? (mediaBlob.type || "video/webm") : "image/jpeg";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, mediaBlob, { contentType });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
-      
+
       const earnedXp = getCalculatedXp(selected.area);
 
-      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
-      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin HOẶC các Trạm thám hiểm, mượn tạm ID hợp lệ
-      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || selected.id === "DH_KIEN_TRUC_HN" || MY_PILLARS.some(p => p.id === selected.id);
-      const validId = isHardcoded 
-        ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
+      // Borrow a valid checkpoint id for hardcoded / current-location entries
+      const isHardcoded =
+        selected.id === "TUONG_DAI_LE_NIN" ||
+        selected.id === "DH_KIEN_TRUC_HN" ||
+        selected.id === "CURRENT_LOCATION" ||
+        MY_PILLARS.some(p => p.id === selected.id);
+      const validId = isHardcoded
+        ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id)
         : selected.id;
 
       const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, 
-        checkpoint_id: validId, // Vứt cái ID mượn này cho Supabase để nó cho qua
-        photo_url: pub.publicUrl, 
-        lat: coords?.lat ?? null, 
-        lng: coords?.lng ?? null, 
+        user_id: user.id,
+        checkpoint_id: validId,
+        photo_url: pub.publicUrl,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
         xp_earned: earnedXp,
       }).select().single();
       if (ciErr) throw ciErr;
 
       const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
-      
-      // 🚀 NHƯNG KHI ĐĂNG BÀI, VẪN DÙNG TÊN THẬT!
-      await supabase.from("posts").insert({ 
-        user_id: user.id, 
-        check_in_id: checkIn.id, 
-        photo_url: pub.publicUrl, 
-        caption: fullCaption || null, 
-        location_name: selected.name // Chỗ này vẫn lấy chữ "Tượng đài Lê Nin"
-      });
+
+      await supabase.from("posts").insert({
+        user_id: user.id,
+        check_in_id: checkIn.id,
+        photo_url: pub.publicUrl,
+        caption: fullCaption || null,
+        location_name: selected.name,
+        media_type: isVideo ? "video" : "image",
+      } as any);
 
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
