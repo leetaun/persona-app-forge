@@ -130,6 +130,7 @@ const FeedScreen = () => {
         const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
         return {
           ...p,
+          media_type: ((p as any).media_type === "video" ? "video" : "image") as "image" | "video",
           display_name: prof?.display_name ?? fallbackName,
           avatar_url: prof?.avatar_url ?? null,
           reaction_count: rx.count,
