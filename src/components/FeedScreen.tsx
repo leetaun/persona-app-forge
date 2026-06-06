@@ -345,7 +345,11 @@ const toggleReaction = async (post: FeedPost) => {
               </div>
 
               <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
-                <img src={item.photo_url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
+                {item.media_type === "video" ? (
+                  <AutoVideo src={item.photo_url} />
+                ) : (
+                  <img src={item.photo_url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
+                )}
               </div>
 
               <div className="p-4 pt-3">
