@@ -105,17 +105,31 @@ const CameraScreen = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
-        audio: false 
+        audio: true 
       });
       streamRef.current = stream;
+      // Mute audio tracks until recording starts (preview playback)
+      stream.getAudioTracks().forEach((t) => (t.enabled = false));
       if (videoRef.current) { 
         videoRef.current.srcObject = stream; 
+        videoRef.current.muted = true;
         await videoRef.current.play(); 
       }
       setCameraReady(true);
     } catch (err) {
       console.error(err);
-      toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
+      // Fallback without audio (e.g., mic denied)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+        setCameraReady(true);
+      } catch {
+        toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
+      }
     }
   };
 
