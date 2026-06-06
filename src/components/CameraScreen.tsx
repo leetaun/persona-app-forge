@@ -39,6 +39,7 @@ const MY_PILLARS = [
 ];
 
 const getCalculatedXp = (area: string | null) => {
+  if (area === "Vị trí hiện tại") return 50;
   if (area === "Văn hóa - Tâm linh") return 100;
   if (area === "Nghệ thuật") return 80;
   if (area === "Nghỉ ngơi") return 50;
