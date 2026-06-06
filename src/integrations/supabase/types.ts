@@ -143,6 +143,7 @@ export type Database = {
           created_at: string
           id: string
           location_name: string | null
+          media_type: string
           photo_url: string
           user_id: string
         }
@@ -152,6 +153,7 @@ export type Database = {
           created_at?: string
           id?: string
           location_name?: string | null
+          media_type?: string
           photo_url: string
           user_id: string
         }
@@ -161,6 +163,7 @@ export type Database = {
           created_at?: string
           id?: string
           location_name?: string | null
+          media_type?: string
           photo_url?: string
           user_id?: string
         }

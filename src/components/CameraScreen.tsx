@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode } from "lucide-react";
+import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode, Navigation, List, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +39,7 @@ const MY_PILLARS = [
 ];
 
 const getCalculatedXp = (area: string | null) => {
+  if (area === "Vị trí hiện tại") return 50;
   if (area === "Văn hóa - Tâm linh") return 100;
   if (area === "Nghệ thuật") return 80;
   if (area === "Nghỉ ngơi") return 50;
@@ -62,13 +63,28 @@ const CameraScreen = () => {
   const [selected, setSelected] = useState<Checkpoint | null>(null);
   const [caption, setCaption] = useState("");
   const [rating, setRating] = useState(0);
-  const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [mediaBlob, setMediaBlob] = useState<Blob | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [step, setStep] = useState<Step>("camera");
-  
+  const [locationTab, setLocationTab] = useState<"current" | "list">("current");
+  const [currentLocLabel, setCurrentLocLabel] = useState<string | null>(null);
+  const [fetchingLoc, setFetchingLoc] = useState(false);
+
+  // Video recording
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const holdTimerRef = useRef<number | null>(null);
+  const recordTimeoutRef = useRef<number | null>(null);
+  const recordStartRef = useRef<number>(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordProgress, setRecordProgress] = useState(0);
+  const progressRafRef = useRef<number>();
+  const MAX_RECORD_MS = 15000;
+
   const [mode, setMode] = useState<"photo" | "qr">("photo");
   const [isScanning, setIsScanning] = useState(false);
   const requestRef = useRef<number>();
@@ -89,17 +105,31 @@ const CameraScreen = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
-        audio: false 
+        audio: true 
       });
       streamRef.current = stream;
+      // Mute audio tracks until recording starts (preview playback)
+      stream.getAudioTracks().forEach((t) => (t.enabled = false));
       if (videoRef.current) { 
         videoRef.current.srcObject = stream; 
+        videoRef.current.muted = true;
         await videoRef.current.play(); 
       }
       setCameraReady(true);
     } catch (err) {
       console.error(err);
-      toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
+      // Fallback without audio (e.g., mic denied)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+        setCameraReady(true);
+      } catch {
+        toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
+      }
     }
   };
 
@@ -212,55 +242,185 @@ const CameraScreen = () => {
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => { if (blob) { setPhotoBlob(blob); setPhotoPreview(URL.createObjectURL(blob)); setStep("preview"); } }, "image/jpeg", 0.9);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        setMediaBlob(blob);
+        setMediaPreview(URL.createObjectURL(blob));
+        setMediaType("image");
+        setStep("preview");
+      }
+    }, "image/jpeg", 0.9);
+  };
+
+  const pickVideoMime = () => {
+    const types = ["video/mp4;codecs=h264,aac", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    for (const t of types) if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t;
+    return "";
+  };
+
+  const startRecording = () => {
+    const stream = streamRef.current;
+    if (!stream || isRecording) return;
+    stream.getAudioTracks().forEach((t) => (t.enabled = true));
+    chunksRef.current = [];
+    const mime = pickVideoMime();
+    let rec: MediaRecorder;
+    try {
+      rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch {
+      toast({ title: "Trình duyệt không hỗ trợ quay video", variant: "destructive" });
+      return;
+    }
+    recorderRef.current = rec;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+    rec.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: rec.mimeType || "video/webm" });
+      stream.getAudioTracks().forEach((t) => (t.enabled = false));
+      if (blob.size > 0) {
+        setMediaBlob(blob);
+        setMediaPreview(URL.createObjectURL(blob));
+        setMediaType("video");
+        setStep("preview");
+      }
+    };
+    rec.start(100);
+    recordStartRef.current = performance.now();
+    setIsRecording(true);
+    setRecordProgress(0);
+    const tick = () => {
+      const elapsed = performance.now() - recordStartRef.current;
+      setRecordProgress(Math.min(1, elapsed / MAX_RECORD_MS));
+      if (elapsed < MAX_RECORD_MS && recorderRef.current?.state === "recording") {
+        progressRafRef.current = requestAnimationFrame(tick);
+      }
+    };
+    progressRafRef.current = requestAnimationFrame(tick);
+    recordTimeoutRef.current = window.setTimeout(stopRecording, MAX_RECORD_MS);
+  };
+
+  const stopRecording = () => {
+    if (recordTimeoutRef.current) { clearTimeout(recordTimeoutRef.current); recordTimeoutRef.current = null; }
+    if (progressRafRef.current) cancelAnimationFrame(progressRafRef.current);
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+    setIsRecording(false);
+    setRecordProgress(0);
+  };
+
+  const onShutterPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (!cameraReady) return;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      startRecording();
+    }, 280);
+  };
+
+  const onShutterPointerUp = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      capture();
+      return;
+    }
+    if (isRecording) stopRecording();
   };
 
   const onFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoBlob(file); setPhotoPreview(URL.createObjectURL(file)); setStep("preview");
+    const isVideo = file.type.startsWith("video/");
+    setMediaBlob(file);
+    setMediaPreview(URL.createObjectURL(file));
+    setMediaType(isVideo ? "video" : "image");
+    setStep("preview");
   };
 
-  const resetAll = () => { setPhotoBlob(null); setPhotoPreview(null); setCaption(""); setRating(0); setSelected(null); setStep("camera"); };
+  const resetAll = () => {
+    setMediaBlob(null);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(null);
+    setMediaType("image");
+    setCaption(""); setRating(0); setSelected(null);
+    setLocationTab("current"); setCurrentLocLabel(null);
+    setStep("camera");
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "Trình duyệt không hỗ trợ định vị", variant: "destructive" });
+      return;
+    }
+    setFetchingLoc(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
+        let label = `Vị trí hiện tại của tôi (Tọa độ: ${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { "Accept-Language": "vi" } });
+          if (r.ok) {
+            const j = await r.json();
+            if (j?.display_name) label = j.display_name;
+          }
+        } catch {}
+        setCurrentLocLabel(label);
+        setSelected({ id: "CURRENT_LOCATION", name: label, area: "Vị trí hiện tại", lat, lng, xp_reward: 50 });
+        setFetchingLoc(false);
+      },
+      () => {
+        setFetchingLoc(false);
+        toast({ title: "Không lấy được vị trí", description: "Vui lòng cấp quyền định vị.", variant: "destructive" });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const submitCheckin = async () => {
-    if (!user || !photoBlob || !selected) return;
+    if (!user || !mediaBlob || !selected) return;
     setSubmitting(true);
     try {
-      const path = `${user.id}/${Date.now()}.jpg`;
-      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, photoBlob, { contentType: "image/jpeg" });
+      const isVideo = mediaType === "video";
+      const ext = isVideo ? (mediaBlob.type.includes("mp4") ? "mp4" : "webm") : "jpg";
+      const contentType = isVideo ? (mediaBlob.type || "video/webm") : "image/jpeg";
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("checkin-photos").upload(path, mediaBlob, { contentType });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("checkin-photos").getPublicUrl(path);
-      
+
       const earnedXp = getCalculatedXp(selected.area);
 
-      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin, mượn tạm ID của địa điểm đầu tiên trong Database
-      // 🛑 TUYỆT CHIÊU MƯỢN ID: Nếu là Lê Nin HOẶC các Trạm thám hiểm, mượn tạm ID hợp lệ
-      const isHardcoded = selected.id === "TUONG_DAI_LE_NIN" || selected.id === "DH_KIEN_TRUC_HN" || MY_PILLARS.some(p => p.id === selected.id);
-      const validId = isHardcoded 
-        ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id) 
+      // Borrow a valid checkpoint id for hardcoded / current-location entries
+      const isHardcoded =
+        selected.id === "TUONG_DAI_LE_NIN" ||
+        selected.id === "DH_KIEN_TRUC_HN" ||
+        selected.id === "CURRENT_LOCATION" ||
+        MY_PILLARS.some(p => p.id === selected.id);
+      const validId = isHardcoded
+        ? (checkpoints.length > 0 ? checkpoints[0].id : selected.id)
         : selected.id;
 
       const { data: checkIn, error: ciErr } = await supabase.from("check_ins").insert({
-        user_id: user.id, 
-        checkpoint_id: validId, // Vứt cái ID mượn này cho Supabase để nó cho qua
-        photo_url: pub.publicUrl, 
-        lat: coords?.lat ?? null, 
-        lng: coords?.lng ?? null, 
+        user_id: user.id,
+        checkpoint_id: validId,
+        photo_url: pub.publicUrl,
+        lat: coords?.lat ?? null,
+        lng: coords?.lng ?? null,
         xp_earned: earnedXp,
       }).select().single();
       if (ciErr) throw ciErr;
 
       const fullCaption = [rating > 0 ? `[★${rating}]` : "", caption.trim()].filter(Boolean).join(" ");
-      
-      // 🚀 NHƯNG KHI ĐĂNG BÀI, VẪN DÙNG TÊN THẬT!
-      await supabase.from("posts").insert({ 
-        user_id: user.id, 
-        check_in_id: checkIn.id, 
-        photo_url: pub.publicUrl, 
-        caption: fullCaption || null, 
-        location_name: selected.name // Chỗ này vẫn lấy chữ "Tượng đài Lê Nin"
-      });
+
+      await supabase.from("posts").insert({
+        user_id: user.id,
+        check_in_id: checkIn.id,
+        photo_url: pub.publicUrl,
+        caption: fullCaption || null,
+        location_name: selected.name,
+        media_type: isVideo ? "video" : "image",
+      } as any);
 
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
       await supabase.from("profiles").update({ xp: (prof?.xp ?? 0) + earnedXp }).eq("user_id", user.id);
@@ -358,11 +518,41 @@ const CameraScreen = () => {
         {mode === "photo" && (
           <div className="absolute bottom-28 left-0 right-0 z-10 flex flex-col items-center gap-4 px-4">
             <div className="flex items-center gap-6">
-              <label className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card"><ImageIcon className="w-5 h-5 text-foreground" /><input type="file" accept="image/*" onChange={onFileUpload} className="hidden" /></label>
-              <button onClick={capture} disabled={!cameraReady} className="w-20 h-20 rounded-full bg-white border-4 border-primary shadow-2xl active:scale-95 transition disabled:opacity-50"><div className="w-full h-full rounded-full border-2 border-primary/40" /></button>
+              <label className={`w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center cursor-pointer hover:bg-card transition ${isRecording ? "opacity-30 pointer-events-none" : ""}`}>
+                <ImageIcon className="w-5 h-5 text-foreground" />
+                <input type="file" accept="image/*,video/*" onChange={onFileUpload} className="hidden" />
+              </label>
+              <button
+                onPointerDown={onShutterPointerDown}
+                onPointerUp={onShutterPointerUp}
+                onPointerLeave={onShutterPointerUp}
+                onPointerCancel={onShutterPointerUp}
+                onContextMenu={(e) => e.preventDefault()}
+                disabled={!cameraReady}
+                className="relative w-20 h-20 rounded-full bg-white shadow-2xl active:scale-95 transition disabled:opacity-50 touch-none select-none"
+                style={{ WebkitUserSelect: "none" }}
+              >
+                {/* Progress ring */}
+                <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="46" fill="none" stroke="hsl(var(--primary) / 0.25)" strokeWidth="6" />
+                  <circle
+                    cx="50" cy="50" r="46" fill="none"
+                    stroke={isRecording ? "hsl(var(--destructive))" : "hsl(var(--primary))"}
+                    strokeWidth="6" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 46}
+                    strokeDashoffset={2 * Math.PI * 46 * (1 - (isRecording ? recordProgress : 1))}
+                    style={{ transition: isRecording ? "none" : "stroke-dashoffset 0.2s" }}
+                  />
+                </svg>
+                <div className={`absolute inset-2 rounded-full flex items-center justify-center ${isRecording ? "bg-destructive" : "bg-white"}`}>
+                  {isRecording && <div className="w-5 h-5 rounded-sm bg-white" />}
+                </div>
+              </button>
               <div className="w-12 h-12" />
             </div>
-            <p className="text-white/80 text-xs font-medium">Chụp ảnh để đăng Bảng tin</p>
+            <p className="text-white/80 text-xs font-medium">
+              {isRecording ? `Đang quay... ${Math.ceil((1 - recordProgress) * 15)}s` : "Chạm để chụp · Giữ để quay video (tối đa 15s)"}
+            </p>
           </div>
         )}
       </div>
@@ -372,9 +562,15 @@ const CameraScreen = () => {
   if (step === "preview") {
     return (
       <div className="h-full relative bg-black flex flex-col overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">{photoPreview && <img src={photoPreview} alt="preview" className="w-full h-full object-contain" />}</div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          {mediaPreview && mediaType === "video" ? (
+            <video src={mediaPreview} controls autoPlay loop playsInline className="w-full h-full object-contain" />
+          ) : mediaPreview ? (
+            <img src={mediaPreview} alt="preview" className="w-full h-full object-contain" />
+          ) : null}
+        </div>
         <div className="absolute top-12 left-4 right-4 z-10 flex justify-between"><button onClick={resetAll} className="w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><X className="w-5 h-5" /></button></div>
-        <div className="absolute bottom-28 left-4 right-4 z-10 flex gap-3"><button onClick={resetAll} className="flex-1 bg-card/90 backdrop-blur text-foreground rounded-2xl py-3.5 font-semibold">Chụp lại</button><button onClick={() => setStep("form")} className="flex-[2] bg-primary text-primary-foreground rounded-2xl py-3.5 font-semibold flex items-center justify-center gap-2 shadow-lg">Tiếp tục <Send className="w-4 h-4" /></button></div>
+        <div className="absolute bottom-28 left-4 right-4 z-10 flex gap-3"><button onClick={resetAll} className="flex-1 bg-card/90 backdrop-blur text-foreground rounded-2xl py-3.5 font-semibold">Quay lại</button><button onClick={() => setStep("form")} className="flex-[2] bg-primary text-primary-foreground rounded-2xl py-3.5 font-semibold flex items-center justify-center gap-2 shadow-lg">Tiếp tục <Send className="w-4 h-4" /></button></div>
       </div>
     );
   }
@@ -383,39 +579,90 @@ const CameraScreen = () => {
     <div className="h-full overflow-y-auto bg-background pb-32">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 pt-12 pb-3 flex items-center gap-3"><button onClick={() => setStep("preview")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button><h1 className="text-lg font-bold text-foreground">Đánh giá check-in</h1></div>
       <div className="px-4 pt-4 space-y-5">
-        {photoPreview && <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-muted"><img src={photoPreview} alt="" className="w-full h-full object-cover" /></div>}
-        
-        {/* 🚀 FORM CHỌN ĐỊA ĐIỂM CHUẨN: CHIA NHÓM VÀ CẬP NHẬT ĐIỂM */}
+        {mediaPreview && (
+          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-muted">
+            {mediaType === "video" ? (
+              <video src={mediaPreview} controls loop muted playsInline className="w-full h-full object-cover" />
+            ) : (
+              <img src={mediaPreview} alt="" className="w-full h-full object-cover" />
+            )}
+          </div>
+        )}
+
+        {/* 🚀 CHỌN ĐỊA ĐIỂM: TAB Vị trí hiện tại / Danh sách */}
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Địa điểm</label>
-          <select 
-            value={selected?.id ?? ""} 
-            onChange={(e) => { 
-              // 👇 Sửa chữ checkpoints thành checkinLocations ở dòng dưới này:
-              setSelected(checkinLocations.find((c) => c.id === e.target.value) ?? null); 
-              setCaption(""); 
-            }} 
-            className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
-          >
-            <option value="">📍 Chọn địa điểm...</option>
-            {Object.entries(grouped).map(([area, list]) => (
-              <optgroup key={area} label={area}>
-                {list.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (+{getCalculatedXp(c.area)} XP)
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {selected && (
-            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              <span>{selected.area}</span>
-              <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-                +{getCalculatedXp(selected.area)} XP
-              </span>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Địa điểm check-in</label>
+          <div className="bg-muted/60 rounded-2xl p-1 flex gap-1 mb-3">
+            <button
+              onClick={() => { setLocationTab("current"); setSelected(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${locationTab === "current" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <Navigation className="w-3.5 h-3.5" /> Vị trí hiện tại
+            </button>
+            <button
+              onClick={() => { setLocationTab("list"); setSelected(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${locationTab === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              <List className="w-3.5 h-3.5" /> Danh sách
+            </button>
+          </div>
+
+          {locationTab === "current" ? (
+            <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+              {currentLocLabel ? (
+                <>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-foreground flex-1 break-words">{currentLocLabel}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Check-in tự do</span>
+                    <span className="bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-full text-xs">+50 XP</span>
+                  </div>
+                  <button onClick={useCurrentLocation} disabled={fetchingLoc} className="w-full text-xs text-primary font-semibold py-1.5">Cập nhật lại vị trí</button>
+                </>
+              ) : (
+                <button
+                  onClick={useCurrentLocation}
+                  disabled={fetchingLoc}
+                  className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary font-bold rounded-xl py-3 text-sm disabled:opacity-50"
+                >
+                  {fetchingLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                  {fetchingLoc ? "Đang lấy vị trí..." : "Lấy vị trí hiện tại (+50 XP)"}
+                </button>
+              )}
             </div>
+          ) : (
+            <>
+              <select 
+                value={selected && selected.id !== "CURRENT_LOCATION" ? selected.id : ""} 
+                onChange={(e) => { 
+                  setSelected(checkinLocations.find((c) => c.id === e.target.value) ?? null); 
+                  setCaption(""); 
+                }} 
+                className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm font-semibold text-foreground"
+              >
+                <option value="">📍 Chọn địa điểm...</option>
+                {Object.entries(grouped).map(([area, list]) => (
+                  <optgroup key={area} label={area}>
+                    {list.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} (+{getCalculatedXp(c.area)} XP)
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {selected && selected.id !== "CURRENT_LOCATION" && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  <span>{selected.area}</span>
+                  <span className="ml-auto bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                    +{getCalculatedXp(selected.area)} XP
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
 

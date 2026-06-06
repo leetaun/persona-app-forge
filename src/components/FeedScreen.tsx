@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Award, MapPin, Clock, MessageCircle, Heart, Trash2, Star } from "lucide-react";
 
@@ -32,6 +32,7 @@ interface FeedPost {
   photo_url: string;
   location_name: string | null;
   created_at: string;
+  media_type: "image" | "video";
   display_name: string | null;
   avatar_url: string | null;
   reaction_count: number;
@@ -39,6 +40,39 @@ interface FeedPost {
   like_count: number;
   user_liked: boolean;
 }
+
+const AutoVideo = ({ src }: { src: string }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio >= 0.6) {
+            el.play().catch(() => {});
+          } else {
+            el.pause();
+          }
+        });
+      },
+      { threshold: [0, 0.6, 1] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      loop
+      muted
+      playsInline
+      preload="metadata"
+      className="w-full h-full object-cover"
+    />
+  );
+};
 
 const FeedScreen = () => {
   const { user } = useAuth();
@@ -96,6 +130,7 @@ const FeedScreen = () => {
         const fallbackName = p.user_id === user?.id ? (user?.email?.split("@")[0] ?? "Bạn") : "Người dùng";
         return {
           ...p,
+          media_type: ((p as any).media_type === "video" ? "video" : "image") as "image" | "video",
           display_name: prof?.display_name ?? fallbackName,
           avatar_url: prof?.avatar_url ?? null,
           reaction_count: rx.count,
@@ -310,7 +345,11 @@ const toggleReaction = async (post: FeedPost) => {
               </div>
 
               <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
-                <img src={item.photo_url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
+                {item.media_type === "video" ? (
+                  <AutoVideo src={item.photo_url} />
+                ) : (
+                  <img src={item.photo_url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
+                )}
               </div>
 
               <div className="p-4 pt-3">
