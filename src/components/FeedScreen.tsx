@@ -32,6 +32,7 @@ interface FeedPost {
   photo_url: string;
   location_name: string | null;
   created_at: string;
+  media_type: "image" | "video";
   display_name: string | null;
   avatar_url: string | null;
   reaction_count: number;
@@ -39,6 +40,39 @@ interface FeedPost {
   like_count: number;
   user_liked: boolean;
 }
+
+const AutoVideo = ({ src }: { src: string }) => {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio >= 0.6) {
+            el.play().catch(() => {});
+          } else {
+            el.pause();
+          }
+        });
+      },
+      { threshold: [0, 0.6, 1] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      loop
+      muted
+      playsInline
+      preload="metadata"
+      className="w-full h-full object-cover"
+    />
+  );
+};
 
 const FeedScreen = () => {
   const { user } = useAuth();
