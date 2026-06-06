@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Award, MapPin, Clock, MessageCircle, Heart, Trash2, Star } from "lucide-react";
 
