@@ -63,13 +63,28 @@ const CameraScreen = () => {
   const [selected, setSelected] = useState<Checkpoint | null>(null);
   const [caption, setCaption] = useState("");
   const [rating, setRating] = useState(0);
-  const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [mediaBlob, setMediaBlob] = useState<Blob | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [step, setStep] = useState<Step>("camera");
-  
+  const [locationTab, setLocationTab] = useState<"current" | "list">("current");
+  const [currentLocLabel, setCurrentLocLabel] = useState<string | null>(null);
+  const [fetchingLoc, setFetchingLoc] = useState(false);
+
+  // Video recording
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const holdTimerRef = useRef<number | null>(null);
+  const recordTimeoutRef = useRef<number | null>(null);
+  const recordStartRef = useRef<number>(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordProgress, setRecordProgress] = useState(0);
+  const progressRafRef = useRef<number>();
+  const MAX_RECORD_MS = 15000;
+
   const [mode, setMode] = useState<"photo" | "qr">("photo");
   const [isScanning, setIsScanning] = useState(false);
   const requestRef = useRef<number>();
