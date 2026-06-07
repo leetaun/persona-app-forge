@@ -115,9 +115,6 @@ const MapScreen = () => {
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
     map.on("load", () => {
-      map.addSource("fog", { type: "geojson", data: buildFogGeoJson() });
-      map.addLayer({ id: "fog-layer", type: "fill", source: "fog", paint: { "fill-color": "#d1d5db", "fill-opacity": 0.9 } });
-      map.addLayer({ id: "fog-outline", type: "line", source: "fog", paint: { "line-color": "#fbbf24", "line-width": 1.5, "line-opacity": 0.6 } });
       setMapReady(true);
     });
     mapRef.current = map;
