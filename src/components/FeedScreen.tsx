@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { Award, MapPin, Clock, MessageCircle, Heart, Trash2, Star } from "lucide-react";
-
-const parseCaption = (raw: string | null): { rating: number; text: string } => {
-  if (!raw) return { rating: 0, text: "" };
-  const m = raw.match(/^\[★(\d)\]\s*/);
-  if (m) return { rating: parseInt(m[1], 10), text: raw.slice(m[0].length) };
-  return { rating: 0, text: raw };
-};
+import { motion, AnimatePresence } from "framer-motion";
+import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +17,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const parseCaption = (raw: string | null): { rating: number; text: string } => {
+  if (!raw) return { rating: 0, text: "" };
+  const m = raw.match(/^\[★(\d)\]\s*/);
+  if (m) return { rating: parseInt(m[1], 10), text: raw.slice(m[0].length) };
+  return { rating: 0, text: raw };
+};
 
 interface FeedPost {
   id: string;
@@ -41,6 +47,8 @@ interface FeedPost {
   user_liked: boolean;
 }
 
+const QUICK_EMOJIS = ["❤️", "🔥", "😂", "😮", "😍", "👏"];
+
 const AutoVideo = ({ src }: { src: string }) => {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -49,11 +57,8 @@ const AutoVideo = ({ src }: { src: string }) => {
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.intersectionRatio >= 0.6) {
-            el.play().catch(() => {});
-          } else {
-            el.pause();
-          }
+          if (entry.intersectionRatio >= 0.6) el.play().catch(() => {});
+          else el.pause();
         });
       },
       { threshold: [0, 0.6, 1] }
@@ -66,7 +71,6 @@ const AutoVideo = ({ src }: { src: string }) => {
       ref={ref}
       src={src}
       loop
-      muted
       playsInline
       preload="metadata"
       className="w-full h-full object-cover"
@@ -79,6 +83,8 @@ const FeedScreen = () => {
   const { toast } = useToast();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [flyingEmoji, setFlyingEmoji] = useState<{ id: string; emoji: string } | null>(null);
+  const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
@@ -97,20 +103,16 @@ const FeedScreen = () => {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
-
     if (!rawPosts) {
       setLoading(false);
       return;
     }
-
     const userIds = [...new Set(rawPosts.map((p) => p.user_id))];
     const postIds = rawPosts.map((p) => p.id);
-
     const [{ data: profiles }, { data: reactions }] = await Promise.all([
       supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", userIds),
       supabase.from("reactions").select("post_id,user_id,medal").in("post_id", postIds),
     ]);
-
     const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
     const reactionMap = new Map<string, { count: number; mine: boolean }>();
     const likeMap = new Map<string, { count: number; mine: boolean }>();
@@ -121,7 +123,6 @@ const FeedScreen = () => {
       if (r.user_id === user?.id) cur.mine = true;
       target.set(r.post_id, cur);
     });
-
     setPosts(
       rawPosts.map((p) => {
         const prof = profileMap.get(p.user_id);
@@ -156,251 +157,243 @@ const FeedScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-const toggleReaction = async (post: FeedPost) => {
-    if (!user) return;
-
-    const wasReacted = post.user_reacted;
-
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === post.id
-          ? {
-              ...p,
-              user_reacted: !wasReacted,
-              reaction_count: Math.max(0, p.reaction_count + (wasReacted ? -1 : 1)),
-            }
-          : p
-      )
-    );
-
-    const { error } = wasReacted
-      ? await supabase
-          .from("reactions")
-          .delete()
-          .match({ post_id: post.id, user_id: user.id, medal: "cheer" })
-      : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "cheer" });
-
-    if (error) {
-      setPosts((prev) =>
-        prev.map((p) =>
-          p.id === post.id
-            ? {
-                ...p,
-                user_reacted: wasReacted,
-                reaction_count: Math.max(0, p.reaction_count + (wasReacted ? 1 : -1)),
-              }
-            : p
-        )
-      );
-
-      toast({
-        title: "Không cập nhật được huy chương",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else if (!wasReacted) {
-      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi tặng huy chương thành công
-      toast({
-        title: "🎉 Tặng huy chương thành công!",
-        description: "Chúc mừng bạn được cộng +3 XP",
-      });
-    }
-  };
-
   const toggleLike = async (post: FeedPost) => {
     if (!user) return;
-
     const wasLiked = post.user_liked;
-
     setPosts((prev) =>
       prev.map((p) =>
         p.id === post.id
-          ? {
-              ...p,
-              user_liked: !wasLiked,
-              like_count: Math.max(0, p.like_count + (wasLiked ? -1 : 1)),
-            }
+          ? { ...p, user_liked: !wasLiked, like_count: Math.max(0, p.like_count + (wasLiked ? -1 : 1)) }
           : p
       )
     );
-
     const { error } = wasLiked
-      ? await supabase
-          .from("reactions")
-          .delete()
-          .match({ post_id: post.id, user_id: user.id, medal: "like" })
+      ? await supabase.from("reactions").delete().match({ post_id: post.id, user_id: user.id, medal: "like" })
       : await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, medal: "like" });
-
     if (error) {
       setPosts((prev) =>
         prev.map((p) =>
           p.id === post.id
-            ? {
-                ...p,
-                user_liked: wasLiked,
-                like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)),
-              }
+            ? { ...p, user_liked: wasLiked, like_count: Math.max(0, p.like_count + (wasLiked ? 1 : -1)) }
             : p
         )
       );
-
-      toast({
-        title: "Không cập nhật được lượt tim",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else if (!wasLiked) {
-      // BẮT ĐẦU ĐOẠN THÊM MỚI: Hiện thông báo khi thả tim thành công
-      toast({
-        title: "❤️ Đã thả tim!",
-        description: "Chúc mừng bạn được cộng +2 XP",
-      });
+      toast({ title: "Không cập nhật được tim", description: error.message, variant: "destructive" });
     }
   };
-  
+
+  const sendEmoji = (post: FeedPost, emoji: string) => {
+    setFlyingEmoji({ id: post.id, emoji });
+    setTimeout(() => setFlyingEmoji(null), 1200);
+    if (emoji === "❤️" && !post.user_liked) toggleLike(post);
+    toast({ title: `Đã gửi ${emoji}`, description: `Tới ${post.display_name}` });
+  };
+
+  const sendMessage = (post: FeedPost) => {
+    const text = (messageDraft[post.id] || "").trim();
+    if (!text) return;
+    setMessageDraft((d) => ({ ...d, [post.id]: "" }));
+    toast({ title: "💬 Đã gửi tin nhắn", description: `Tới ${post.display_name}: ${text}` });
+  };
+
   return (
-    <div className="h-full overflow-y-auto px-4 pt-14 pb-28 bg-background">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-foreground mb-1">Jourstic Feed</h1>
-        <p className="text-sm text-muted-foreground mb-6">Khám phá từ cộng đồng</p>
-      </motion.div>
+    <div className="fixed inset-0 bg-black text-white overflow-hidden">
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-3 px-5 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
+        <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
+          <span className="text-lg">👥</span>
+        </button>
+        <h1 className="text-base font-bold tracking-tight">Bảng tin</h1>
+        <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
+          <span className="text-lg">💬</span>
+        </button>
+      </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-7 h-7 border-2 border-white border-t-transparent rounded-full animate-spin" />
         </div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-12">
-          <MapPin className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Chưa có check-in nào. Hãy là người đầu tiên!</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+          <MapPin className="w-12 h-12 text-white/30 mb-4" />
+          <p className="text-white/70">Chưa có check-in nào. Hãy là người đầu tiên!</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {posts.map((item, i) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.06, 0.3) }}
-              className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm"
-            >
-              <div className="flex items-center gap-3 p-4 pb-2">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden">
-                  {item.avatar_url ? (
-                    <img src={item.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-primary-foreground text-xs font-bold">
-                      {(item.display_name || "?").slice(0, 2).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{item.display_name}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    {item.location_name && (
-                      <span className="flex items-center gap-0.5 truncate">
-                        <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
-                        {item.location_name}
+        <div
+          className="h-full w-full overflow-y-auto snap-y snap-mandatory scroll-smooth"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <style>{`
+            .feed-scroll::-webkit-scrollbar { display: none; }
+            @keyframes floatUp { 0%{transform:translate(-50%,0) scale(1);opacity:1} 100%{transform:translate(-50%,-180px) scale(2);opacity:0} }
+          `}</style>
+          {posts.map((item) => {
+            const { rating, text } = parseCaption(item.caption);
+            return (
+              <section
+                key={item.id}
+                className="h-screen w-full snap-start flex flex-col items-center justify-center px-5 relative"
+              >
+                {/* Header */}
+                <div className="w-full max-w-md flex items-center justify-center gap-2 mb-4 mt-20">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-orange-400 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {item.avatar_url ? (
+                      <img src={item.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-bold text-white">
+                        {(item.display_name || "?").slice(0, 1).toUpperCase()}
                       </span>
                     )}
-                    <span className="flex items-center gap-0.5 flex-shrink-0">
-                      <Clock className="w-2.5 h-2.5" />
-                      {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
-                    </span>
                   </div>
+                  <span className="text-sm font-semibold">{item.display_name}</span>
+                  <span className="text-xs text-white/50">·</span>
+                  <span className="text-xs text-white/50">
+                    {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
+                  </span>
+                  {user?.id === item.user_id && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="ml-1 w-7 h-7 flex items-center justify-center text-white/60">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                              className="text-red-400 focus:text-red-400 focus:bg-white/10"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" /> Gỡ bài viết
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Gỡ bài viết này?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Bài viết sẽ bị xoá vĩnh viễn. Hành động này không thể hoàn tác.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deletePost(item)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Gỡ bài
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
-                <div className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full flex-shrink-0">
-                  <Award className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] font-semibold text-primary">Verified</span>
-                </div>
-                {user?.id === item.user_id && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button
-                        className="w-8 h-8 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive flex-shrink-0 transition-colors"
-                        aria-label="Gỡ bài"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Gỡ bài viết này?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Bài viết sẽ bị xoá khỏi feed. Hành động này không thể hoàn tác.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Huỷ</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deletePost(item)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Gỡ bài
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
 
-              <div className="w-full aspect-[4/3] overflow-hidden bg-muted">
-                {item.media_type === "video" ? (
-                  <AutoVideo src={item.photo_url} />
-                ) : (
-                  <img src={item.photo_url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
-                )}
-              </div>
+                {/* Photo card */}
+                <motion.div
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="relative w-full max-w-md aspect-square rounded-[44px] overflow-hidden bg-zinc-900 shadow-2xl"
+                  onDoubleClick={() => sendEmoji(item, "❤️")}
+                >
+                  {item.media_type === "video" ? (
+                    <AutoVideo src={item.photo_url} />
+                  ) : (
+                    <img src={item.photo_url} alt={text} className="w-full h-full object-cover" />
+                  )}
 
-              <div className="p-4 pt-3">
-                {(() => {
-                  const { rating, text } = parseCaption(item.caption);
-                  return (
-                    <>
+                  {/* Caption overlay */}
+                  {(text || rating > 0 || item.location_name) && (
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-4 max-w-[88%] px-4 py-2 rounded-full bg-black/55 backdrop-blur-md text-center">
                       {rating > 0 && (
-                        <div className="flex items-center gap-0.5 mb-2">
+                        <div className="flex items-center justify-center gap-0.5 mb-0.5">
                           {[1, 2, 3, 4, 5].map((n) => (
                             <Star
                               key={n}
-                              className={`w-4 h-4 ${
-                                n <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
+                              className={`w-3 h-3 ${
+                                n <= rating ? "fill-yellow-400 text-yellow-400" : "text-white/30"
                               }`}
                             />
                           ))}
-                          <span className="ml-1 text-xs font-semibold text-foreground">{rating}.0</span>
                         </div>
                       )}
-                      {text && <p className="text-sm text-foreground mb-3">{text}</p>}
-                    </>
-                  );
-                })()}
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => toggleReaction(item)}
-                    className={`flex items-center gap-1.5 transition-colors ${
-                      item.user_reacted ? "text-primary" : "text-muted-foreground hover:text-primary"
-                    }`}
-                  >
-                    <Award className={`w-4 h-4 ${item.user_reacted ? "fill-primary" : ""}`} />
-                    <span className="text-xs">{item.reaction_count}</span>
-                  </button>
+                      {text && <p className="text-sm font-medium leading-tight">{text}</p>}
+                      {item.location_name && (
+                        <p className="text-[11px] text-white/70 flex items-center justify-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3" /> {item.location_name}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Flying emoji */}
+                  <AnimatePresence>
+                    {flyingEmoji?.id === item.id && (
+                      <div
+                        className="pointer-events-none absolute left-1/2 bottom-20 text-5xl"
+                        style={{ animation: "floatUp 1.1s ease-out forwards" }}
+                      >
+                        {flyingEmoji.emoji}
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+
+                {/* Counts row */}
+                <div className="w-full max-w-md flex items-center justify-center gap-5 mt-4">
                   <button
                     onClick={() => toggleLike(item)}
-                    className={`flex items-center gap-1.5 transition-colors ${
-                      item.user_liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
-                    }`}
-                    aria-label={item.user_liked ? "Bỏ thích" : "Thả tim"}
+                    className="flex items-center gap-1.5 text-sm"
                   >
-                    <Heart className={`w-4 h-4 ${item.user_liked ? "fill-red-500" : ""}`} />
-                    <span className="text-xs">{item.like_count}</span>
+                    <Heart
+                      className={`w-5 h-5 ${item.user_liked ? "fill-red-500 text-red-500" : "text-white/70"}`}
+                    />
+                    <span className="text-white/70">{item.like_count}</span>
                   </button>
-                  <button className="flex items-center gap-1.5 text-muted-foreground">
-                    <MessageCircle className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 text-sm text-white/70">
+                    <Award className="w-5 h-5" />
+                    <span>{item.reaction_count}</span>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+
+                {/* Bottom message bar */}
+                <div className="absolute left-0 right-0 bottom-24 px-5">
+                  <div className="max-w-md mx-auto">
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-2 py-2 border border-white/15">
+                      <input
+                        value={messageDraft[item.id] || ""}
+                        onChange={(e) => setMessageDraft((d) => ({ ...d, [item.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && sendMessage(item)}
+                        placeholder={`Gửi tin nhắn tới ${item.display_name}...`}
+                        className="flex-1 bg-transparent outline-none text-sm placeholder:text-white/50 px-3"
+                      />
+                      {messageDraft[item.id]?.trim() ? (
+                        <button
+                          onClick={() => sendMessage(item)}
+                          className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1 pr-1">
+                          {QUICK_EMOJIS.slice(0, 4).map((e) => (
+                            <button
+                              key={e}
+                              onClick={() => sendEmoji(item, e)}
+                              className="text-xl active:scale-125 transition-transform"
+                            >
+                              {e}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
