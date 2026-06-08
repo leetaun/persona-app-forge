@@ -84,6 +84,7 @@ const CameraScreen = () => {
   const [recordProgress, setRecordProgress] = useState(0);
   const progressRafRef = useRef<number>();
   const MAX_RECORD_MS = 15000;
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
   const [mode, setMode] = useState<"photo" | "qr">("photo");
   const [isScanning, setIsScanning] = useState(false);
