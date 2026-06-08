@@ -560,7 +560,7 @@ const CameraScreen = () => {
               <button
                 onClick={toggleCamera}
                 disabled={!cameraReady || isRecording}
-                className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center text-white hover:bg-card transition disabled:opacity-30"
+                className="w-12 h-12 rounded-full bg-white/30 backdrop-blur flex items-center justify-center text-white border border-white/40 shadow-lg hover:bg-white/50 transition disabled:opacity-30"
               >
                 <RefreshCw className="w-5 h-5" />
               </button>
