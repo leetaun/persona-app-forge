@@ -102,10 +102,11 @@ const CameraScreen = () => {
     }
   }, []);
 
-  const startCamera = async () => {
+  const startCamera = async (nextFacing?: "environment" | "user") => {
+    const mode = nextFacing ?? facingMode;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: true 
       });
       streamRef.current = stream;
@@ -122,7 +123,7 @@ const CameraScreen = () => {
       // Fallback without audio (e.g., mic denied)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         streamRef.current = stream;
@@ -132,6 +133,13 @@ const CameraScreen = () => {
         toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
       }
     }
+  };
+
+  const toggleCamera = () => {
+    const next = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(next);
+    stopCamera();
+    startCamera(next);
   };
 
   const stopCamera = () => {
