@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode, Navigation, List, Video } from "lucide-react";
+import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode, Navigation, List, Video, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -84,6 +84,7 @@ const CameraScreen = () => {
   const [recordProgress, setRecordProgress] = useState(0);
   const progressRafRef = useRef<number>();
   const MAX_RECORD_MS = 15000;
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
   const [mode, setMode] = useState<"photo" | "qr">("photo");
   const [isScanning, setIsScanning] = useState(false);
@@ -101,10 +102,11 @@ const CameraScreen = () => {
     }
   }, []);
 
-  const startCamera = async () => {
+  const startCamera = async (nextFacing?: "environment" | "user") => {
+    const mode = nextFacing ?? facingMode;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
         audio: true 
       });
       streamRef.current = stream;
@@ -121,7 +123,7 @@ const CameraScreen = () => {
       // Fallback without audio (e.g., mic denied)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         streamRef.current = stream;
@@ -131,6 +133,13 @@ const CameraScreen = () => {
         toast({ title: "Lỗi Camera", description: "Vui lòng cấp quyền camera.", variant: "destructive" });
       }
     }
+  };
+
+  const toggleCamera = () => {
+    const next = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(next);
+    stopCamera();
+    startCamera(next);
   };
 
   const stopCamera = () => {
@@ -548,7 +557,13 @@ const CameraScreen = () => {
                   {isRecording && <div className="w-5 h-5 rounded-sm bg-white" />}
                 </div>
               </button>
-              <div className="w-12 h-12" />
+              <button
+                onClick={toggleCamera}
+                disabled={!cameraReady || isRecording}
+                className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center text-white hover:bg-card transition disabled:opacity-30"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
             </div>
             <p className="text-white/80 text-xs font-medium">
               {isRecording ? `Đang quay... ${Math.ceil((1 - recordProgress) * 15)}s` : "Chạm để chụp · Giữ để quay video (tối đa 15s)"}
