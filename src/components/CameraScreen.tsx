@@ -557,7 +557,13 @@ const CameraScreen = () => {
                   {isRecording && <div className="w-5 h-5 rounded-sm bg-white" />}
                 </div>
               </button>
-              <div className="w-12 h-12" />
+              <button
+                onClick={toggleCamera}
+                disabled={!cameraReady || isRecording}
+                className="w-12 h-12 rounded-full bg-card/90 backdrop-blur flex items-center justify-center text-white hover:bg-card transition disabled:opacity-30"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
             </div>
             <p className="text-white/80 text-xs font-medium">
               {isRecording ? `Đang quay... ${Math.ceil((1 - recordProgress) * 15)}s` : "Chạm để chụp · Giữ để quay video (tối đa 15s)"}
