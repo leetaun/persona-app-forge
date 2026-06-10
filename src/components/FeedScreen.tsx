@@ -4,7 +4,7 @@ import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award } from "lucide
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { vi } from "date-fns/locale";
 import {
   AlertDialog,
@@ -248,7 +248,7 @@ const FeedScreen = () => {
                   <span className="text-sm font-semibold">{item.display_name}</span>
                   <span className="text-xs text-white/50">·</span>
                   <span className="text-xs text-white/50">
-                    {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
+                    {format(new Date(item.created_at), "HH:mm")} · {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
                   </span>
                   {user?.id === item.user_id && (
                     <DropdownMenu>
