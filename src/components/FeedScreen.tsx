@@ -248,7 +248,7 @@ const FeedScreen = () => {
                   <span className="text-sm font-semibold">{item.display_name}</span>
                   <span className="text-xs text-white/50">·</span>
                   <span className="text-xs text-white/50">
-                    {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
+                    {format(new Date(item.created_at), "HH:mm")} · {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: vi })}
                   </span>
                   {user?.id === item.user_id && (
                     <DropdownMenu>
