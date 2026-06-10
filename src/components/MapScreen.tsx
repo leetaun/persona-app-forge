@@ -110,7 +110,7 @@ const MapScreen = () => {
     if (!token || !containerRef.current || mapRef.current) return;
     mapboxgl.accessToken = token;
     const map = new mapboxgl.Map({
-      container: containerRef.current, style: "mapbox://styles/mapbox/streets-v12", center: HANOI_CENTER, zoom: 11.5, pitch: 0,
+      container: containerRef.current, style: "mapbox://styles/mapbox/satellite-streets-v12", center: HANOI_CENTER, zoom: 11.5, pitch: 0,
     });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
