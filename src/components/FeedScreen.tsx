@@ -373,6 +373,28 @@ const FeedScreen = () => {
                   </AnimatePresence>
                 </motion.div>
 
+                {/* Music card */}
+                {item.music && (
+                  <div className="w-full max-w-md mt-3 flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-3 py-2">
+                    {item.music.cover ? (
+                      <img src={item.music.cover} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-md bg-white/15 flex items-center justify-center flex-shrink-0"><Music className="w-4 h-4 text-white" /></div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{item.music.name}</p>
+                      <p className="text-[11px] text-white/60 truncate">{item.music.artists}</p>
+                    </div>
+                    {item.music.preview_url ? (
+                      <button onClick={() => toggleMusic(item)} className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center flex-shrink-0">
+                        {playingPostId === item.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                      </button>
+                    ) : item.music.external_url ? (
+                      <a href={item.music.external_url} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-white/80 px-2 py-1 rounded-full bg-white/10 flex-shrink-0">Spotify</a>
+                    ) : null}
+                  </div>
+                )}
+
                 {/* Counts row */}
                 <div className="w-full max-w-md flex items-center justify-center gap-5 mt-4">
                   <button
