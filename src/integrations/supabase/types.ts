@@ -144,6 +144,7 @@ export type Database = {
           id: string
           location_name: string | null
           media_type: string
+          music: Json | null
           photo_url: string
           user_id: string
         }
@@ -154,6 +155,7 @@ export type Database = {
           id?: string
           location_name?: string | null
           media_type?: string
+          music?: Json | null
           photo_url: string
           user_id: string
         }
@@ -164,6 +166,7 @@ export type Database = {
           id?: string
           location_name?: string | null
           media_type?: string
+          music?: Json | null
           photo_url?: string
           user_id?: string
         }
