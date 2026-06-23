@@ -492,6 +492,14 @@ const CameraScreen = () => {
         caption: fullCaption || null,
         location_name: selected.name,
         media_type: isVideo ? "video" : "image",
+        music: selectedTrack ? {
+          id: selectedTrack.id,
+          name: selectedTrack.name,
+          artists: selectedTrack.artists,
+          preview_url: selectedTrack.preview_url,
+          cover: selectedTrack.cover_lg ?? selectedTrack.cover,
+          external_url: selectedTrack.external_url,
+        } : null,
       } as any);
 
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
