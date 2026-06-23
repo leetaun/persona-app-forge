@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode, Navigation, List, Video, RefreshCw } from "lucide-react";
+import { Camera, MapPin, Loader2, Image as ImageIcon, X, Star, ArrowLeft, Send, QrCode, Navigation, List, Video, RefreshCw, Music, Play, Pause, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -89,6 +89,23 @@ const CameraScreen = () => {
   const [mode, setMode] = useState<"photo" | "qr">("photo");
   const [isScanning, setIsScanning] = useState(false);
   const requestRef = useRef<number>();
+
+  // Spotify music picker
+  type SpotifyTrack = {
+    id: string;
+    name: string;
+    artists: string;
+    preview_url: string | null;
+    cover: string | null;
+    cover_lg: string | null;
+    external_url: string | null;
+  };
+  const [musicQuery, setMusicQuery] = useState("");
+  const [musicResults, setMusicResults] = useState<SpotifyTrack[]>([]);
+  const [musicSearching, setMusicSearching] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<SpotifyTrack | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     supabase.from("checkpoints").select("*").order("area").order("name")
@@ -352,8 +369,54 @@ const CameraScreen = () => {
     setMediaType("image");
     setCaption(""); setRating(0); setSelected(null);
     setLocationTab("current"); setCurrentLocLabel(null);
+    setMusicQuery(""); setMusicResults([]); setSelectedTrack(null);
+    if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null; }
+    setPlayingId(null);
     setStep("camera");
   };
+
+  // Spotify search (debounced)
+  useEffect(() => {
+    if (step !== "form") return;
+    const q = musicQuery.trim();
+    if (!q) { setMusicResults([]); return; }
+    const t = setTimeout(async () => {
+      setMusicSearching(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("spotify-search", { body: { q } });
+        if (error) throw error;
+        setMusicResults((data?.tracks as SpotifyTrack[]) ?? []);
+      } catch (err: any) {
+        toast({ title: "Lỗi tìm nhạc", description: err.message, variant: "destructive" });
+      } finally {
+        setMusicSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [musicQuery, step]);
+
+  const togglePreview = (track: SpotifyTrack) => {
+    if (!track.preview_url) {
+      toast({ title: "Bài này không có bản preview", description: "Bạn vẫn có thể gắn vào bài đăng." });
+      return;
+    }
+    if (playingId === track.id && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+      setPlayingId(null);
+      return;
+    }
+    if (previewAudioRef.current) previewAudioRef.current.pause();
+    const audio = new Audio(track.preview_url);
+    audio.volume = 0.9;
+    audio.onended = () => { setPlayingId(null); previewAudioRef.current = null; };
+    audio.play().catch(() => {});
+    previewAudioRef.current = audio;
+    setPlayingId(track.id);
+  };
+
+  useEffect(() => () => { previewAudioRef.current?.pause(); }, []);
+
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -429,6 +492,14 @@ const CameraScreen = () => {
         caption: fullCaption || null,
         location_name: selected.name,
         media_type: isVideo ? "video" : "image",
+        music: selectedTrack ? {
+          id: selectedTrack.id,
+          name: selectedTrack.name,
+          artists: selectedTrack.artists,
+          preview_url: selectedTrack.preview_url,
+          cover: selectedTrack.cover_lg ?? selectedTrack.cover,
+          external_url: selectedTrack.external_url,
+        } : null,
       } as any);
 
       const { data: prof } = await supabase.from("profiles").select("xp").eq("user_id", user.id).maybeSingle();
@@ -692,6 +763,71 @@ const CameraScreen = () => {
           <div><label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Gợi ý</label><div className="flex flex-wrap gap-2"><AnimatePresence>{tags.map((tag) => (<motion.button key={tag} onClick={() => addTag(tag)} className="px-3 py-1.5 bg-primary/10 text-primary text-xs font-medium rounded-full hover:bg-primary/20 transition">+ {tag}</motion.button>))}</AnimatePresence></div></div>
         )}
         <div><label className="block text-xs font-semibold text-muted-foreground uppercase mb-2">Nhận xét</label><textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Chia sẻ trải nghiệm..." rows={3} className="w-full bg-card border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none" /></div>
+
+        {/* 🎵 Gắn nhạc từ Spotify */}
+        <div>
+          <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1.5">
+            <Music className="w-3.5 h-3.5" /> Gắn nhạc (Spotify)
+          </label>
+
+          {selectedTrack ? (
+            <div className="bg-card border border-border rounded-2xl p-3 flex items-center gap-3">
+              {selectedTrack.cover ? (
+                <img src={selectedTrack.cover} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Music className="w-5 h-5 text-primary" /></div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{selectedTrack.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{selectedTrack.artists}</p>
+              </div>
+              {selectedTrack.preview_url && (
+                <button onClick={() => togglePreview(selectedTrack)} className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                  {playingId === selectedTrack.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                </button>
+              )}
+              <button onClick={() => { setSelectedTrack(null); if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null; } setPlayingId(null); }} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  value={musicQuery}
+                  onChange={(e) => setMusicQuery(e.target.value)}
+                  placeholder="Tìm bài hát, nghệ sĩ..."
+                  className="w-full bg-card border border-border rounded-2xl pl-9 pr-4 py-3 text-sm text-foreground"
+                />
+                {musicSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+              </div>
+              {musicResults.length > 0 && (
+                <div className="mt-2 bg-card border border-border rounded-2xl divide-y divide-border max-h-72 overflow-y-auto">
+                  {musicResults.map((t) => (
+                    <div key={t.id} className="flex items-center gap-3 p-2.5">
+                      {t.cover ? (
+                        <img src={t.cover} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center flex-shrink-0"><Music className="w-4 h-4 text-muted-foreground" /></div>
+                      )}
+                      <button onClick={() => setSelectedTrack(t)} className="flex-1 text-left min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{t.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{t.artists}</p>
+                      </button>
+                      {t.preview_url && (
+                        <button onClick={() => togglePreview(t)} className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                          {playingId === t.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
         <button onClick={submitCheckin} disabled={!selected || submitting} className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg">{submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Camera className="w-4 h-4" /> Đăng bài</>}</button>
       </div>
     </div>

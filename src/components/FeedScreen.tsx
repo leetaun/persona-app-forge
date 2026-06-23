@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award } from "lucide-react";
+import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award, Music, Play, Pause } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,15 @@ const parseCaption = (raw: string | null): { rating: number; text: string } => {
   return { rating: 0, text: raw };
 };
 
+interface PostMusic {
+  id?: string;
+  name: string;
+  artists: string;
+  preview_url: string | null;
+  cover: string | null;
+  external_url?: string | null;
+}
+
 interface FeedPost {
   id: string;
   user_id: string;
@@ -45,6 +54,7 @@ interface FeedPost {
   user_reacted: boolean;
   like_count: number;
   user_liked: boolean;
+  music: PostMusic | null;
 }
 
 const QUICK_EMOJIS = ["❤️", "🔥", "😂", "😮", "😍", "👏"];
@@ -85,6 +95,28 @@ const FeedScreen = () => {
   const [loading, setLoading] = useState(true);
   const [flyingEmoji, setFlyingEmoji] = useState<{ id: string; emoji: string } | null>(null);
   const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
+  const [playingPostId, setPlayingPostId] = useState<string | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleMusic = (post: FeedPost) => {
+    if (!post.music?.preview_url) return;
+    if (playingPostId === post.id && musicAudioRef.current) {
+      musicAudioRef.current.pause();
+      musicAudioRef.current = null;
+      setPlayingPostId(null);
+      return;
+    }
+    if (musicAudioRef.current) musicAudioRef.current.pause();
+    const audio = new Audio(post.music.preview_url);
+    audio.volume = 0.9;
+    audio.onended = () => { setPlayingPostId(null); musicAudioRef.current = null; };
+    audio.play().catch(() => {});
+    musicAudioRef.current = audio;
+    setPlayingPostId(post.id);
+  };
+
+  useEffect(() => () => { musicAudioRef.current?.pause(); }, []);
+
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
@@ -138,7 +170,8 @@ const FeedScreen = () => {
           user_reacted: rx.mine,
           like_count: lk.count,
           user_liked: lk.mine,
-        };
+          music: ((p as any).music && typeof (p as any).music === "object") ? (p as any).music as PostMusic : null,
+        } as FeedPost;
       })
     );
     setLoading(false);
@@ -339,6 +372,28 @@ const FeedScreen = () => {
                     )}
                   </AnimatePresence>
                 </motion.div>
+
+                {/* Music card */}
+                {item.music && (
+                  <div className="w-full max-w-md mt-3 flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-3 py-2">
+                    {item.music.cover ? (
+                      <img src={item.music.cover} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-md bg-white/15 flex items-center justify-center flex-shrink-0"><Music className="w-4 h-4 text-white" /></div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{item.music.name}</p>
+                      <p className="text-[11px] text-white/60 truncate">{item.music.artists}</p>
+                    </div>
+                    {item.music.preview_url ? (
+                      <button onClick={() => toggleMusic(item)} className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center flex-shrink-0">
+                        {playingPostId === item.id ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                      </button>
+                    ) : item.music.external_url ? (
+                      <a href={item.music.external_url} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-white/80 px-2 py-1 rounded-full bg-white/10 flex-shrink-0">Spotify</a>
+                    ) : null}
+                  </div>
+                )}
 
                 {/* Counts row */}
                 <div className="w-full max-w-md flex items-center justify-center gap-5 mt-4">
