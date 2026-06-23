@@ -90,6 +90,23 @@ const CameraScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const requestRef = useRef<number>();
 
+  // Spotify music picker
+  type SpotifyTrack = {
+    id: string;
+    name: string;
+    artists: string;
+    preview_url: string | null;
+    cover: string | null;
+    cover_lg: string | null;
+    external_url: string | null;
+  };
+  const [musicQuery, setMusicQuery] = useState("");
+  const [musicResults, setMusicResults] = useState<SpotifyTrack[]>([]);
+  const [musicSearching, setMusicSearching] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<SpotifyTrack | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     supabase.from("checkpoints").select("*").order("area").order("name")
       .then(({ data }) => setCheckpoints((data as Checkpoint[]) || []));
