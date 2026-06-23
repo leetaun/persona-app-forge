@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award } from "lucide-react";
+import { MapPin, Heart, Trash2, Star, Send, MoreHorizontal, Award, Music, Play, Pause } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
