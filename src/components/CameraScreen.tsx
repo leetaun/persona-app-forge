@@ -369,8 +369,54 @@ const CameraScreen = () => {
     setMediaType("image");
     setCaption(""); setRating(0); setSelected(null);
     setLocationTab("current"); setCurrentLocLabel(null);
+    setMusicQuery(""); setMusicResults([]); setSelectedTrack(null);
+    if (previewAudioRef.current) { previewAudioRef.current.pause(); previewAudioRef.current = null; }
+    setPlayingId(null);
     setStep("camera");
   };
+
+  // Spotify search (debounced)
+  useEffect(() => {
+    if (step !== "form") return;
+    const q = musicQuery.trim();
+    if (!q) { setMusicResults([]); return; }
+    const t = setTimeout(async () => {
+      setMusicSearching(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("spotify-search", { body: { q } });
+        if (error) throw error;
+        setMusicResults((data?.tracks as SpotifyTrack[]) ?? []);
+      } catch (err: any) {
+        toast({ title: "Lỗi tìm nhạc", description: err.message, variant: "destructive" });
+      } finally {
+        setMusicSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [musicQuery, step]);
+
+  const togglePreview = (track: SpotifyTrack) => {
+    if (!track.preview_url) {
+      toast({ title: "Bài này không có bản preview", description: "Bạn vẫn có thể gắn vào bài đăng." });
+      return;
+    }
+    if (playingId === track.id && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+      setPlayingId(null);
+      return;
+    }
+    if (previewAudioRef.current) previewAudioRef.current.pause();
+    const audio = new Audio(track.preview_url);
+    audio.volume = 0.9;
+    audio.onended = () => { setPlayingId(null); previewAudioRef.current = null; };
+    audio.play().catch(() => {});
+    previewAudioRef.current = audio;
+    setPlayingId(track.id);
+  };
+
+  useEffect(() => () => { previewAudioRef.current?.pause(); }, []);
+
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
