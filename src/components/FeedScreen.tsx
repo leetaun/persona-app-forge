@@ -95,6 +95,28 @@ const FeedScreen = () => {
   const [loading, setLoading] = useState(true);
   const [flyingEmoji, setFlyingEmoji] = useState<{ id: string; emoji: string } | null>(null);
   const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
+  const [playingPostId, setPlayingPostId] = useState<string | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleMusic = (post: FeedPost) => {
+    if (!post.music?.preview_url) return;
+    if (playingPostId === post.id && musicAudioRef.current) {
+      musicAudioRef.current.pause();
+      musicAudioRef.current = null;
+      setPlayingPostId(null);
+      return;
+    }
+    if (musicAudioRef.current) musicAudioRef.current.pause();
+    const audio = new Audio(post.music.preview_url);
+    audio.volume = 0.9;
+    audio.onended = () => { setPlayingPostId(null); musicAudioRef.current = null; };
+    audio.play().catch(() => {});
+    musicAudioRef.current = audio;
+    setPlayingPostId(post.id);
+  };
+
+  useEffect(() => () => { musicAudioRef.current?.pause(); }, []);
+
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
