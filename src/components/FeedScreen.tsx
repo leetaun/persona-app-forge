@@ -148,7 +148,8 @@ const FeedScreen = () => {
           user_reacted: rx.mine,
           like_count: lk.count,
           user_liked: lk.mine,
-        };
+          music: ((p as any).music && typeof (p as any).music === "object") ? (p as any).music as PostMusic : null,
+        } as FeedPost;
       })
     );
     setLoading(false);
