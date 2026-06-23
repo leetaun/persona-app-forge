@@ -31,6 +31,15 @@ const parseCaption = (raw: string | null): { rating: number; text: string } => {
   return { rating: 0, text: raw };
 };
 
+interface PostMusic {
+  id?: string;
+  name: string;
+  artists: string;
+  preview_url: string | null;
+  cover: string | null;
+  external_url?: string | null;
+}
+
 interface FeedPost {
   id: string;
   user_id: string;
@@ -45,6 +54,7 @@ interface FeedPost {
   user_reacted: boolean;
   like_count: number;
   user_liked: boolean;
+  music: PostMusic | null;
 }
 
 const QUICK_EMOJIS = ["❤️", "🔥", "😂", "😮", "😍", "👏"];
