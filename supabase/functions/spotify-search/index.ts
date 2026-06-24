@@ -8,8 +8,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json().catch(() => ({ query: "" }));
-    const q = (query ?? "").toString().trim();
+    const body = await req.json().catch(() => ({}));
+    const q = ((body?.q ?? body?.query) ?? "").toString().trim();
 
     if (!q) {
       return new Response(JSON.stringify({ tracks: [] }), {
