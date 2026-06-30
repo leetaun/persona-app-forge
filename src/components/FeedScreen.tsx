@@ -145,6 +145,35 @@ const FeedScreen = () => {
 
   useEffect(() => () => { musicAudioRef.current?.pause(); }, []);
 
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const postById = new Map(posts.map((p) => [p.id, p]));
+    const io = new IntersectionObserver(
+      (entries) => {
+        let best: { id: string; ratio: number } | null = null;
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.postId;
+          if (!id) return;
+          if (entry.intersectionRatio >= 0.6 && (!best || entry.intersectionRatio > best.ratio)) {
+            best = { id, ratio: entry.intersectionRatio };
+          }
+        });
+        if (best) {
+          const post = postById.get(best.id);
+          if (post?.music?.preview_url) {
+            if (currentPostIdRef.current !== post.id) playMusicFor(post);
+          } else if (currentPostIdRef.current) {
+            stopMusic();
+          }
+        }
+      },
+      { threshold: [0, 0.6, 0.9] }
+    );
+    Object.values(sectionRefs.current).forEach((el) => el && io.observe(el));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts]);
+
 
   const deletePost = async (post: FeedPost) => {
     if (!user || post.user_id !== user.id) return;
