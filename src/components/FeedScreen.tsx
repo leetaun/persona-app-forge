@@ -96,23 +96,51 @@ const FeedScreen = () => {
   const [flyingEmoji, setFlyingEmoji] = useState<{ id: string; emoji: string } | null>(null);
   const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
   const [playingPostId, setPlayingPostId] = useState<string | null>(null);
+  const [mutedByPolicy, setMutedByPolicy] = useState(false);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentPostIdRef = useRef<string | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const stopMusic = () => {
+    if (musicAudioRef.current) {
+      musicAudioRef.current.pause();
+      musicAudioRef.current = null;
+    }
+    currentPostIdRef.current = null;
+    setPlayingPostId(null);
+  };
+
+  const playMusicFor = (post: FeedPost) => {
+    if (!post.music?.preview_url) return;
+    if (currentPostIdRef.current === post.id && musicAudioRef.current) return;
+    if (musicAudioRef.current) musicAudioRef.current.pause();
+    const audio = new Audio(post.music.preview_url);
+    audio.volume = 0.9;
+    audio.muted = mutedByPolicy;
+    audio.onended = () => { if (currentPostIdRef.current === post.id) stopMusic(); };
+    musicAudioRef.current = audio;
+    currentPostIdRef.current = post.id;
+    setPlayingPostId(post.id);
+    audio.play().catch(() => {
+      // Autoplay blocked — retry muted so it at least plays; user can tap to unmute
+      audio.muted = true;
+      setMutedByPolicy(true);
+      audio.play().catch(() => {});
+    });
+  };
 
   const toggleMusic = (post: FeedPost) => {
     if (!post.music?.preview_url) return;
     if (playingPostId === post.id && musicAudioRef.current) {
-      musicAudioRef.current.pause();
-      musicAudioRef.current = null;
-      setPlayingPostId(null);
+      if (mutedByPolicy) {
+        musicAudioRef.current.muted = false;
+        setMutedByPolicy(false);
+        return;
+      }
+      stopMusic();
       return;
     }
-    if (musicAudioRef.current) musicAudioRef.current.pause();
-    const audio = new Audio(post.music.preview_url);
-    audio.volume = 0.9;
-    audio.onended = () => { setPlayingPostId(null); musicAudioRef.current = null; };
-    audio.play().catch(() => {});
-    musicAudioRef.current = audio;
-    setPlayingPostId(post.id);
+    playMusicFor(post);
   };
 
   useEffect(() => () => { musicAudioRef.current?.pause(); }, []);
