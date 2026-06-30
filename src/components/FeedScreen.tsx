@@ -322,6 +322,8 @@ const FeedScreen = () => {
             return (
               <section
                 key={item.id}
+                ref={(el) => { sectionRefs.current[item.id] = el; }}
+                data-post-id={item.id}
                 className="h-screen w-full snap-start flex flex-col items-center justify-center px-5 relative"
               >
                 {/* Header */}
