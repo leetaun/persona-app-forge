@@ -96,26 +96,83 @@ const FeedScreen = () => {
   const [flyingEmoji, setFlyingEmoji] = useState<{ id: string; emoji: string } | null>(null);
   const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
   const [playingPostId, setPlayingPostId] = useState<string | null>(null);
+  const [mutedByPolicy, setMutedByPolicy] = useState(false);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentPostIdRef = useRef<string | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const stopMusic = () => {
+    if (musicAudioRef.current) {
+      musicAudioRef.current.pause();
+      musicAudioRef.current = null;
+    }
+    currentPostIdRef.current = null;
+    setPlayingPostId(null);
+  };
+
+  const playMusicFor = (post: FeedPost) => {
+    if (!post.music?.preview_url) return;
+    if (currentPostIdRef.current === post.id && musicAudioRef.current) return;
+    if (musicAudioRef.current) musicAudioRef.current.pause();
+    const audio = new Audio(post.music.preview_url);
+    audio.volume = 0.9;
+    audio.muted = mutedByPolicy;
+    audio.onended = () => { if (currentPostIdRef.current === post.id) stopMusic(); };
+    musicAudioRef.current = audio;
+    currentPostIdRef.current = post.id;
+    setPlayingPostId(post.id);
+    audio.play().catch(() => {
+      // Autoplay blocked — retry muted so it at least plays; user can tap to unmute
+      audio.muted = true;
+      setMutedByPolicy(true);
+      audio.play().catch(() => {});
+    });
+  };
 
   const toggleMusic = (post: FeedPost) => {
     if (!post.music?.preview_url) return;
     if (playingPostId === post.id && musicAudioRef.current) {
-      musicAudioRef.current.pause();
-      musicAudioRef.current = null;
-      setPlayingPostId(null);
+      if (mutedByPolicy) {
+        musicAudioRef.current.muted = false;
+        setMutedByPolicy(false);
+        return;
+      }
+      stopMusic();
       return;
     }
-    if (musicAudioRef.current) musicAudioRef.current.pause();
-    const audio = new Audio(post.music.preview_url);
-    audio.volume = 0.9;
-    audio.onended = () => { setPlayingPostId(null); musicAudioRef.current = null; };
-    audio.play().catch(() => {});
-    musicAudioRef.current = audio;
-    setPlayingPostId(post.id);
+    playMusicFor(post);
   };
 
   useEffect(() => () => { musicAudioRef.current?.pause(); }, []);
+
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const postById = new Map(posts.map((p) => [p.id, p]));
+    const io = new IntersectionObserver(
+      (entries) => {
+        let best: { id: string; ratio: number } | null = null;
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.postId;
+          if (!id) return;
+          if (entry.intersectionRatio >= 0.6 && (!best || entry.intersectionRatio > best.ratio)) {
+            best = { id, ratio: entry.intersectionRatio };
+          }
+        });
+        if (best) {
+          const post = postById.get(best.id);
+          if (post?.music?.preview_url) {
+            if (currentPostIdRef.current !== post.id) playMusicFor(post);
+          } else if (currentPostIdRef.current) {
+            stopMusic();
+          }
+        }
+      },
+      { threshold: [0, 0.6, 0.9] }
+    );
+    Object.values(sectionRefs.current).forEach((el) => el && io.observe(el));
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts]);
 
 
   const deletePost = async (post: FeedPost) => {
@@ -265,6 +322,8 @@ const FeedScreen = () => {
             return (
               <section
                 key={item.id}
+                ref={(el) => { sectionRefs.current[item.id] = el; }}
+                data-post-id={item.id}
                 className="h-screen w-full snap-start flex flex-col items-center justify-center px-5 relative"
               >
                 {/* Header */}
