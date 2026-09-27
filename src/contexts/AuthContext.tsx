@@ -25,7 +25,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        if (event === "SIGNED_OUT") {
+          setTimeout(() => supabase.auth.signInAnonymously(), 0);
+        }
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
