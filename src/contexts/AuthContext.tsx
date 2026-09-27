@@ -32,7 +32,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        // No login required: create a guest session automatically
+        const { data } = await supabase.auth.signInAnonymously();
+        session = data.session;
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
