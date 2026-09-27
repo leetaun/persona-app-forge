@@ -25,14 +25,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        if (event === "SIGNED_OUT") {
+          setTimeout(() => supabase.auth.signInAnonymously(), 0);
+        }
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        // No login required: create a guest session automatically
+        const { data } = await supabase.auth.signInAnonymously();
+        session = data.session;
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
